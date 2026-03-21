@@ -3,6 +3,7 @@ import queue
 import time
 
 from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi.responses import StreamingResponse
 
 from api.schemas import SessionStatus, SessionResult
 
@@ -66,6 +67,36 @@ def stop_session(session_id: str, request: Request):
     if result is None:
         raise HTTPException(status_code=404, detail="Sessao nao encontrada")
     return result
+
+
+@router.get("/api/sessions/{session_id}/stream")
+async def stream_session(session_id: str, request: Request):
+    """MJPEG stream do feed da camera com detecções desenhadas.
+
+    Uso no frontend:
+        <img src="http://localhost:8000/api/sessions/{id}/stream" />
+    """
+    manager = _get_manager(request)
+    session = manager.get_session(session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Sessao nao encontrada")
+
+    async def mjpeg_generator():
+        while not session.stop_event.is_set():
+            jpeg = session.webcam_service.get_jpeg_frame()
+            if jpeg is not None:
+                yield (
+                    b"--frame\r\n"
+                    b"Content-Type: image/jpeg\r\n\r\n"
+                    + jpeg
+                    + b"\r\n"
+                )
+            await asyncio.sleep(0.05)  # ~20 fps max
+
+    return StreamingResponse(
+        mjpeg_generator(),
+        media_type="multipart/x-mixed-replace; boundary=frame",
+    )
 
 
 @router.websocket("/ws/sessions/{session_id}")
