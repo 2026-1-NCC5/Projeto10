@@ -21,17 +21,20 @@ def _get_model(request: Request):
 def create_session(request: Request):
     model = _get_model(request)
     if model is None:
-        raise HTTPException(status_code=503, detail="Modelo não carregado. Coloque best_food_classifier.pth em models/")
+        raise HTTPException(
+            status_code=503,
+            detail="Modelo nao carregado. Coloque best.pt em models/",
+        )
 
     manager = _get_manager(request)
-    session = manager.create_session(model=model, device=request.app.state.device)
+    session = manager.create_session(model=model)
 
     return SessionStatus(
         session_id=session.session_id,
         status="running",
-        counts=session.counts,
-        current_detection=None,
-        current_confidence=None,
+        counts=session.webcam_service.counts,
+        active_detections=[],
+        tracked_objects=0,
         elapsed_seconds=0.0,
     )
 
@@ -41,7 +44,7 @@ def get_session(session_id: str, request: Request):
     manager = _get_manager(request)
     session = manager.get_session(session_id)
     if session is None:
-        raise HTTPException(status_code=404, detail="Sessão não encontrada")
+        raise HTTPException(status_code=404, detail="Sessao nao encontrada")
 
     svc = session.webcam_service
     status = "stopped" if session.stop_event.is_set() else "running"
@@ -50,8 +53,8 @@ def get_session(session_id: str, request: Request):
         session_id=session_id,
         status=status,
         counts=dict(svc.counts),
-        current_detection=svc.current_label,
-        current_confidence=svc.current_confidence,
+        active_detections=[],
+        tracked_objects=0,
         elapsed_seconds=time.time() - session.start_time,
     )
 
@@ -61,7 +64,7 @@ def stop_session(session_id: str, request: Request):
     manager = _get_manager(request)
     result = manager.stop_session(session_id)
     if result is None:
-        raise HTTPException(status_code=404, detail="Sessão não encontrada")
+        raise HTTPException(status_code=404, detail="Sessao nao encontrada")
     return result
 
 

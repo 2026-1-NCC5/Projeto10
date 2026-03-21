@@ -20,9 +20,6 @@ class Session:
     webcam_service: WebcamService
     status: str = "running"
     final_result: Optional[SessionResult] = None
-    current_label: Optional[str] = None
-    current_confidence: Optional[float] = None
-    counts: dict = field(default_factory=lambda: {cat: 0 for cat in CATEGORIES} | {"total": 0})
 
 
 class SessionManager:
@@ -30,14 +27,13 @@ class SessionManager:
         self.sessions: dict[str, Session] = {}
         self.lock = threading.Lock()
 
-    def create_session(self, model, device) -> Session:
+    def create_session(self, model) -> Session:
         session_id = str(uuid.uuid4())
         stop_event = threading.Event()
         result_queue: queue.Queue = queue.Queue()
 
         svc = WebcamService(
             model=model,
-            device=device,
             stop_event=stop_event,
             result_queue=result_queue,
         )
@@ -77,8 +73,17 @@ class SessionManager:
         result = SessionResult(
             session_id=session_id,
             counts=dict(svc.counts),
-            detections=[DetectionRecord(**d) for d in svc.detections],
+            detections=[
+                DetectionRecord(
+                    label=d["label"],
+                    confidence=d["confidence"],
+                    timestamp=d["timestamp"],
+                    object_id=d.get("object_id"),
+                )
+                for d in svc.detections
+            ],
             elapsed_seconds=elapsed,
+            total_unique_items=svc.counts.get("total", 0),
         )
 
         session.status = "stopped"

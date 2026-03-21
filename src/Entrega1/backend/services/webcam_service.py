@@ -4,51 +4,47 @@ import threading
 
 import cv2
 
-from config import CATEGORIES, CONFIDENCE_THRESHOLD, COOLDOWN_SECONDS
-from ml.inference import classify_frame
-from ml.preprocessing import detect_object_present
+from config import CAMERA_INDEX, CATEGORIES, CONFIDENCE_THRESHOLD
+from ml.inference import detect_frame
+
+REQUIRED_STABLE_FRAMES = 10
+COOLDOWN_SECONDS = 3.0
 
 
 class WebcamService:
     def __init__(
         self,
         model,
-        device,
         stop_event: threading.Event,
         result_queue: queue.Queue,
-        cooldown: float = COOLDOWN_SECONDS,
-        confidence_threshold: float = CONFIDENCE_THRESHOLD,
     ):
         self.model = model
-        self.device = device
         self.stop_event = stop_event
         self.result_queue = result_queue
-        self.cooldown = cooldown
-        self.confidence_threshold = confidence_threshold
 
         self.counts = {cat: 0 for cat in CATEGORIES}
         self.counts["total"] = 0
         self.detections: list[dict] = []
-        self.current_label: str | None = None
-        self.current_confidence: float | None = None
+
+        self._stable_label = None
+        self._stable_count = 0
+        self._last_saved_label = None
+        self._last_saved_time = 0.0
 
     def run(self):
         """Blocking capture loop — meant to be called inside a threading.Thread."""
-        cap = cv2.VideoCapture(0)
+        cap = cv2.VideoCapture(CAMERA_INDEX)
 
         if not cap.isOpened():
             self.result_queue.put({
                 "type": "stopped",
                 "results": {
-                    "counts": self.counts,
-                    "detections": self.detections,
-                    "error": "Webcam não disponível (cv2.VideoCapture(0) falhou)",
+                    "counts": dict(self.counts),
+                    "detections": list(self.detections),
+                    "error": "Webcam nao disponivel",
                 },
             })
             return
-
-        object_was_present = False
-        last_count_time = 0.0
 
         try:
             while not self.stop_event.is_set():
@@ -56,34 +52,63 @@ class WebcamService:
                 if not ret:
                     break
 
-                obj_present, _ = detect_object_present(frame)
+                raw_detections = detect_frame(frame, self.model, CONFIDENCE_THRESHOLD)
 
-                if obj_present:
-                    label, confidence, _ = classify_frame(frame, self.model)
-                    now = time.time()
-                    is_new = (not object_was_present) or (now - last_count_time > self.cooldown)
+                current_label = None
+                current_conf = 0.0
+                newly_counted = []
 
-                    if is_new and confidence >= self.confidence_threshold:
-                        self.counts[label] += 1
-                        self.counts["total"] += 1
-                        last_count_time = now
-                        record = {"label": label, "confidence": confidence, "timestamp": now}
-                        self.detections.append(record)
+                if raw_detections:
+                    best = max(raw_detections, key=lambda d: d["confidence"])
+                    current_label = best["label"]
+                    current_conf = best["confidence"]
 
-                    object_was_present = True
-                    self.current_label = label
-                    self.current_confidence = confidence
+                    if self._stable_label == current_label:
+                        self._stable_count += 1
+                    else:
+                        self._stable_label = current_label
+                        self._stable_count = 1
 
-                    self.result_queue.put({
-                        "type": "update",
-                        "label": label,
-                        "confidence": confidence,
-                        "counts": dict(self.counts),
-                    })
+                    if self._stable_count >= REQUIRED_STABLE_FRAMES:
+                        now = time.time()
+                        if (
+                            current_label != self._last_saved_label
+                            or (now - self._last_saved_time) > COOLDOWN_SECONDS
+                        ):
+                            cat = current_label if current_label in self.counts else "outros"
+                            self.counts[cat] += 1
+                            self.counts["total"] += 1
+                            self._last_saved_label = current_label
+                            self._last_saved_time = now
+                            self._stable_count = 0
+
+                            record = {
+                                "label": current_label,
+                                "confidence": current_conf,
+                                "timestamp": now,
+                            }
+                            self.detections.append(record)
+                            newly_counted.append(record)
                 else:
-                    object_was_present = False
-                    self.current_label = None
-                    self.current_confidence = None
+                    self._stable_label = None
+                    self._stable_count = 0
+
+                self.result_queue.put({
+                    "type": "update",
+                    "detections": [
+                        {
+                            "label": d["label"],
+                            "confidence": d["confidence"],
+                            "bbox": d["bbox"],
+                        }
+                        for d in raw_detections
+                    ],
+                    "counts": dict(self.counts),
+                    "newly_counted": newly_counted,
+                    "current_detection": current_label,
+                    "current_confidence": current_conf,
+                    "stable_frames": self._stable_count,
+                })
         finally:
             cap.release()
             self.result_queue.put({

@@ -1,28 +1,32 @@
-import torch
-from torchvision import transforms
-
-from config import CATEGORIES, DEVICE, IMG_SIZE, IMAGENET_MEAN, IMAGENET_STD
-from ml.preprocessing import preprocess_frame
-
-val_transforms = transforms.Compose([
-    transforms.Resize((IMG_SIZE, IMG_SIZE)),
-    transforms.ToTensor(),
-    transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD),
-])
+from config import CONFIDENCE_THRESHOLD
 
 
-def classify_frame(frame_bgr, model):
-    """Classifica o objeto principal no frame.
+def detect_frame(frame_bgr, model, confidence_threshold=None):
+    """Executa YOLO em um frame BGR.
 
-    Returns (label: str, confidence: float, probs: np.ndarray)
+    Retorna lista de dicts com label, confidence, bbox [x1,y1,x2,y2] e centroid (cx, cy).
     """
-    model.eval()
-    img_pil = preprocess_frame(frame_bgr)
-    img_tensor = val_transforms(img_pil).unsqueeze(0).to(DEVICE)
+    if confidence_threshold is None:
+        confidence_threshold = CONFIDENCE_THRESHOLD
 
-    with torch.no_grad():
-        outputs = model(img_tensor)
-        probs = torch.softmax(outputs, dim=1)[0].cpu().numpy()
+    results = model(frame_bgr, conf=confidence_threshold, verbose=False)
 
-    pred_idx = int(probs.argmax())
-    return CATEGORIES[pred_idx], float(probs[pred_idx]), probs
+    detections = []
+    if results and results[0].boxes is not None:
+        for box in results[0].boxes:
+            cls_id = int(box.cls[0].item())
+            conf = float(box.conf[0].item())
+            xyxy = box.xyxy[0].cpu().numpy()
+            label = model.names[cls_id]
+
+            cx = float((xyxy[0] + xyxy[2]) / 2)
+            cy = float((xyxy[1] + xyxy[3]) / 2)
+
+            detections.append({
+                "label": label,
+                "confidence": conf,
+                "bbox": [float(v) for v in xyxy],
+                "centroid": (cx, cy),
+            })
+
+    return detections
