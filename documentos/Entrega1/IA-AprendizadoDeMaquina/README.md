@@ -4,7 +4,7 @@
 
 O relatorio completo desta entrega esta disponivel em:
 
-**[Entrega1_EL_FECAP.pdf](./Entrega1_EL_FECAP.pdf)** — contem introducao, metodologia, metricas, tecnologias, estrutura de arquivos, evidencias de execucao via webcam e conclusao.
+**[Entrega01-IA-E-Aprendizado-de-Maquina.pdf](./Entrega01-IA-E-Aprendizado-de-Maquina.pdf)** — contem introducao, metodologia, metricas, tecnologias, estrutura de arquivos, evidencias de execucao via webcam e conclusao.
 
 ---
 
@@ -95,7 +95,7 @@ runs/
             BoxPR_curve.png
         val2/                          <- resultados da avaliacao
 yolov8n.pt                             <- modelo base pre-treinado (COCO)
-Entrega1_EL_FECAP.pdf                  <- relatorio da entrega
+Entrega01-IA-E-Aprendizado-de-Maquina.pdf  <- relatorio da entrega
 ```
 
 ---
