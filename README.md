@@ -170,7 +170,6 @@ Projeto10/
 │               └── validation/                   # Schemas Zod
 │
 ├── README.md
-├── CLAUDE.md
 └── .gitignore
 ```
 
