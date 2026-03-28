@@ -12,30 +12,7 @@ O relatorio completo desta entrega esta disponivel em:
 
 Este modulo implementa um sistema de deteccao de objetos para contagem automatica de alimentos doados, usando YOLOv8n (You Only Look Once — nano), desenvolvido como entrega da disciplina de Inteligencia Artificial e Aprendizado de Maquina.
 
-O sistema detecta embalagens de tres categorias — **arroz** (classe 0), **feijao** (classe 1) e **outros** (classe 2, inclui acucar, cafe e demais itens) — a partir de imagens capturadas em ambiente controlado (fundo escuro, iluminacao fixa, camera sobre rampa).
-
----
-
-## Metricas do Modelo Treinado
-
-Avaliacao no conjunto de validacao (313 imagens):
-
-| Metrica | Valor |
-|---------|-------|
-| mAP50 | 0.6337 |
-| mAP50-95 | 0.6337 |
-| Precision geral | 0.543 |
-| Recall geral | 0.985 |
-
-Metricas por classe:
-
-| Classe | Precision | Recall | AP50 |
-|--------|-----------|--------|------|
-| Arroz | 0.5217 | 0.9545 | 0.6878 |
-| Feijao | 0.5167 | 1.0000 | 0.5776 |
-| Outros | 0.5901 | 1.0000 | 0.6358 |
-
-Graficos de curvas (Precision, Recall, F1, PR) e matrizes de confusao estao disponiveis em `runs/detect/treino_alimentos2/`.
+O modelo YOLO detecta 5 classes granulares — **arroz** (0), **feijao** (1), **acucar** (2), **cafe** (3) e **macarrao** (4) — que sao mapeadas para 3 categorias na API: **arroz**, **feijao** e **outros**. Quando a IA reconhece um item especifico dentro de "outros" (acucar, cafe, macarrao), essa informacao e incluida no campo `sub_item` do payload. Caso nao reconheca, o `sub_item` retorna `"desconhecido"`.
 
 ---
 
@@ -51,11 +28,11 @@ Graficos de curvas (Precision, Recall, F1, PR) e matrizes de confusao estao disp
 
 | Arquivo | Responsabilidade |
 |---------|-----------------|
-| `config.py` | Constantes globais: caminhos, categorias, hiperparametros |
+| `config.py` | Constantes globais: caminhos, 5 classes YOLO, mapeamento para 3 categorias, hiperparametros |
 | `generate_dataset.py` | Gera dataset aumentado a partir das imagens base (rotacao, flip, blur, ruido, zoom) |
 | `split_dataset.py` | Divide o dataset em treino (80%) e validacao (20%) |
 | `generate_labels.py` | Gera arquivos de label no formato YOLO para cada imagem |
-| `data.yaml` | Configuracao do dataset para o YOLOv8 |
+| `data.yaml` | Configuracao do dataset para o YOLOv8 (5 classes) |
 
 ### Scripts executaveis
 
@@ -63,40 +40,49 @@ Graficos de curvas (Precision, Recall, F1, PR) e matrizes de confusao estao disp
 |---------|-----------|
 | `train_yolo.py` | Treina o modelo YOLOv8n e salva o checkpoint em `runs/` |
 | `evaluate.py` | Avalia o modelo treinado e imprime metricas por classe |
-| `webcam_demo.py` | Abre a camera, detecta objetos em tempo real e conta itens unicos |
+| `webcam_demo.py` | Abre a camera, detecta objetos em tempo real, conta itens e exibe o payload JSON que o backend retornaria |
 
 ### Dataset, modelo e resultados
 
 ```
-dataset_base/                          <- 88 imagens originais
+dataset_base/                          <- 88 imagens originais (5 classes)
     arroz/       (17 imagens)
     feijao/      (28 imagens)
-    outros/      (43 imagens)
-dataset/                               <- 1089 imagens apos augmentation + split
+    acucar/      (16 imagens)
+    cafe/        (9 imagens)
+    macarrao/    (18 imagens)
+dataset/                               <- imagens apos augmentation + split
     images/
-        train/   (776 imagens)
-        val/     (313 imagens)
+        train/   (5 subpastas)
+        val/     (5 subpastas)
     labels/
         train/   <- labels YOLO para treino
         val/     <- labels YOLO para validacao
 models/
-    best.pt                            <- modelo treinado final (6.3 MB)
+    best.pt                            <- modelo treinado final (6.3 MB, 5 classes)
 runs/
     detect/
-        treino_alimentos2/             <- resultados do treino atual
+        treino_alimentos/              <- resultados do treino atual
             weights/best.pt
-            results.csv
-            results.png
-            confusion_matrix.png
-            confusion_matrix_normalized.png
-            BoxP_curve.png
-            BoxR_curve.png
-            BoxF1_curve.png
-            BoxPR_curve.png
-        val2/                          <- resultados da avaliacao
 yolov8n.pt                             <- modelo base pre-treinado (COCO)
 Entrega01-IA-E-Aprendizado-de-Maquina.pdf  <- relatorio da entrega
 ```
+
+---
+
+## Mapeamento de classes
+
+O modelo YOLO classifica 5 classes granulares, mapeadas para 3 categorias na API:
+
+| Classe YOLO | ID | Categoria API | sub_item |
+|-------------|----|---------------|----------|
+| arroz       | 0  | arroz         | arroz    |
+| feijao      | 1  | feijao        | feijao   |
+| acucar      | 2  | outros        | acucar   |
+| cafe        | 3  | outros        | cafe     |
+| macarrao    | 4  | outros        | macarrao |
+
+Se o modelo nao reconhece o item especifico, `sub_item` retorna `"desconhecido"` (fallback).
 
 ---
 
@@ -140,7 +126,7 @@ Cria arquivos `.txt` no formato YOLO (classe + bounding box) para cada imagem.
 python train_yolo.py
 ```
 
-Treina o YOLOv8n por 30 epocas (batch 8, imagem 640x640). O melhor modelo e salvo em `runs/detect/treino_alimentos/weights/best.pt`. Tempo estimado: ~57 minutos na CPU.
+Treina o YOLOv8n por 30 epocas (batch 8, imagem 640x640). O melhor modelo e salvo em `runs/detect/treino_alimentos/weights/best.pt`.
 
 ### 6. Avaliar o modelo
 
@@ -153,8 +139,8 @@ Imprime mAP50, mAP50-95 e metricas por classe (precision, recall, AP50).
 ### 7. Copiar modelo para o backend
 
 ```bash
-cp runs/detect/treino_alimentos2/weights/best.pt models/best.pt
-cp runs/detect/treino_alimentos2/weights/best.pt ../../src/Entrega1/backend/models/best.pt
+cp runs/detect/treino_alimentos/weights/best.pt models/best.pt
+cp runs/detect/treino_alimentos/weights/best.pt ../../../src/Entrega1/backend/models/best.pt
 ```
 
 ---
@@ -175,10 +161,11 @@ python3 webcam_demo.py 1      # usa webcam externa (indice 1)
 1. O script abre a camera e carrega o modelo YOLOv8
 2. Cada frame e analisado pelo modelo em tempo real
 3. Bounding boxes coloridas aparecem ao redor dos objetos detectados com o nome da classe e a confianca
-4. **Contagem por estabilidade**: o sistema precisa detectar o **mesmo item por 10 frames consecutivos** antes de confirmar a contagem
+4. **Contagem por estabilidade**: o sistema precisa detectar o **mesmo item por 10 frames consecutivos** antes de confirmar a contagem — trocar entre sub-itens (ex: acucar para cafe) reseta o contador
 5. Apos contar, ha um cooldown de 3 segundos antes de poder contar o mesmo tipo de item novamente
 6. Um painel no canto superior esquerdo mostra as contagens em tempo real por categoria
 7. Uma barra de progresso na parte inferior mostra o andamento da estabilizacao
+8. A cada item contado, o terminal exibe o **payload JSON** que o backend retornaria via API
 
 ### Dicas para teste
 
@@ -193,15 +180,49 @@ python3 webcam_demo.py 1      # usa webcam externa (indice 1)
 Modelo carregado.
 Camera iniciada. Pressione 'q' para sair.
 
-[CONTADO] arroz  conf=0.84  total=1
-[CONTADO] feijao  conf=0.88  total=2
-[CONTADO] outros  conf=0.87  total=3
+[CONTADO] arroz  conf=0.92  total=1
+[PAYLOAD] {
+  "label": "arroz",
+  "sub_item": "arroz",
+  "confidence": 0.9187,
+  "timestamp": 1774728142.3
+}
+
+[CONTADO] feijao  conf=0.89  total=2
+[PAYLOAD] {
+  "label": "feijao",
+  "sub_item": "feijao",
+  "confidence": 0.8934,
+  "timestamp": 1774728148.5
+}
+
+[CONTADO] outros (macarrao)  conf=0.84  total=3
+[PAYLOAD] {
+  "label": "outros",
+  "sub_item": "macarrao",
+  "confidence": 0.8408,
+  "timestamp": 1774728156.7
+}
 
 === Resumo da sessao ===
   arroz: 1
   feijao: 1
   outros: 1
   total: 3
+
+=== Payload que o backend retornaria (DELETE /api/sessions/id) ===
+{
+  "session_id": "demo-local",
+  "counts": { "arroz": 1, "feijao": 1, "outros": 1, "total": 3 },
+  "sub_items": { "macarrao": 1 },
+  "detections": [
+    { "label": "arroz", "sub_item": "arroz", "confidence": 0.9187, "timestamp": 1774728142.3 },
+    { "label": "feijao", "sub_item": "feijao", "confidence": 0.8934, "timestamp": 1774728148.5 },
+    { "label": "outros", "sub_item": "macarrao", "confidence": 0.8408, "timestamp": 1774728156.7 }
+  ],
+  "elapsed_seconds": 25.3,
+  "total_unique_items": 3
+}
 ```
 
 ---
