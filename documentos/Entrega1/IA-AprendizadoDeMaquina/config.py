@@ -7,8 +7,20 @@ DATA_YAML = BASE_DIR / "data.yaml"
 RUNS_DIR = BASE_DIR / "runs"
 MODELS_DIR = BASE_DIR / "models"
 
+YOLO_CLASSES = ["arroz", "feijao", "acucar", "cafe", "macarrao"]
+CLASS_MAP = {cls: i for i, cls in enumerate(YOLO_CLASSES)}
+
 CATEGORIES = ["arroz", "feijao", "outros"]
-CLASS_MAP = {cat: i for i, cat in enumerate(CATEGORIES)}
+
+CLASS_TO_CATEGORY = {
+    "arroz": ("arroz", "arroz"),
+    "feijao": ("feijao", "feijao"),
+    "acucar": ("outros", "acucar"),
+    "cafe": ("outros", "cafe"),
+    "macarrao": ("outros", "macarrao"),
+}
+
+SUB_ITEM_DEFAULT = "desconhecido"
 
 IMG_SIZE = 640
 IMAGES_PER_INPUT = 10

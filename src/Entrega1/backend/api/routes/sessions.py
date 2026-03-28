@@ -34,6 +34,7 @@ def create_session(request: Request):
         session_id=session.session_id,
         status="running",
         counts=session.webcam_service.counts,
+        sub_items=session.webcam_service.sub_item_counts,
         active_detections=[],
         tracked_objects=0,
         elapsed_seconds=0.0,
@@ -54,6 +55,7 @@ def get_session(session_id: str, request: Request):
         session_id=session_id,
         status=status,
         counts=dict(svc.counts),
+        sub_items=dict(svc.sub_item_counts),
         active_detections=[],
         tracked_objects=0,
         elapsed_seconds=time.time() - session.start_time,
@@ -71,11 +73,6 @@ def stop_session(session_id: str, request: Request):
 
 @router.get("/api/sessions/{session_id}/stream")
 async def stream_session(session_id: str, request: Request):
-    """MJPEG stream do feed da camera com detecções desenhadas.
-
-    Uso no frontend:
-        <img src="http://localhost:8000/api/sessions/{id}/stream" />
-    """
     manager = _get_manager(request)
     session = manager.get_session(session_id)
     if session is None:
@@ -120,6 +117,7 @@ async def websocket_session(websocket: WebSocket, session_id: str):
                         "type": "stopped",
                         "results": {
                             "counts": dict(session.webcam_service.counts),
+                            "sub_items": dict(session.webcam_service.sub_item_counts),
                             "detections": list(session.webcam_service.detections),
                         },
                     })

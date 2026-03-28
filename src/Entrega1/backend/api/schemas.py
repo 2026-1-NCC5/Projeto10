@@ -14,6 +14,7 @@ class BoundingBox(BaseModel):
 
 class DetectionRecord(BaseModel):
     label: str
+    sub_item: str = "desconhecido"
     confidence: float
     timestamp: float
     object_id: Optional[int] = None
@@ -21,8 +22,9 @@ class DetectionRecord(BaseModel):
 
 class SessionStatus(BaseModel):
     session_id: str
-    status: str  # "running" | "stopped"
+    status: str
     counts: dict[str, int]
+    sub_items: dict[str, int] = {}
     active_detections: list[DetectionRecord] = []
     tracked_objects: int = 0
     elapsed_seconds: float
@@ -31,6 +33,7 @@ class SessionStatus(BaseModel):
 class SessionResult(BaseModel):
     session_id: str
     counts: dict[str, int]
+    sub_items: dict[str, int] = {}
     detections: list[DetectionRecord]
     elapsed_seconds: float
     total_unique_items: int = 0

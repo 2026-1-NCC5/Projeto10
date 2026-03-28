@@ -73,9 +73,11 @@ class SessionManager:
         result = SessionResult(
             session_id=session_id,
             counts=dict(svc.counts),
+            sub_items=dict(svc.sub_item_counts),
             detections=[
                 DetectionRecord(
                     label=d["label"],
+                    sub_item=d.get("sub_item", "desconhecido"),
                     confidence=d["confidence"],
                     timestamp=d["timestamp"],
                     object_id=d.get("object_id"),

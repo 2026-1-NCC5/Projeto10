@@ -1,13 +1,3 @@
-"""
-Demo visual da camera com deteccao YOLOv8 e contagem por estabilidade.
-
-Uso:
-    python3 webcam_demo.py          # camera padrao (indice 0)
-    python3 webcam_demo.py 1        # webcam externa (indice 1)
-
-Pressione 'q' para encerrar.
-"""
-
 import sys
 import time
 from pathlib import Path
@@ -20,6 +10,15 @@ CAMERA_INDEX = 0
 CONFIDENCE_THRESHOLD = 0.75
 REQUIRED_STABLE_FRAMES = 10
 COOLDOWN_SECONDS = 3.0
+
+CLASS_TO_CATEGORY = {
+    "arroz": ("arroz", "arroz"),
+    "feijao": ("feijao", "feijao"),
+    "acucar": ("outros", "acucar"),
+    "cafe": ("outros", "cafe"),
+    "macarrao": ("outros", "macarrao"),
+}
+SUB_ITEM_DEFAULT = "desconhecido"
 
 
 def main():
@@ -41,11 +40,11 @@ def main():
     print("Camera iniciada. Pressione 'q' para sair.\n")
 
     counts = {"arroz": 0, "feijao": 0, "outros": 0, "total": 0}
+    sub_item_counts: dict[str, int] = {}
 
-    # Contagem por estabilidade (mesmo approach do Projeto2)
-    stable_label = None
+    stable_raw_label = None
     stable_count = 0
-    last_saved_label = None
+    last_saved_raw_label = None
     last_saved_time = 0.0
 
     while True:
@@ -58,42 +57,62 @@ def main():
         annotated = results[0].plot()
 
         current_label = None
+        current_sub_item = None
+        current_raw_label = None
         current_conf = 0.0
 
         if results[0].boxes is not None and len(results[0].boxes) > 0:
             best_box = max(results[0].boxes, key=lambda b: float(b.conf[0].item()))
             cls_id = int(best_box.cls[0].item())
             current_conf = float(best_box.conf[0].item())
-            current_label = model.names[cls_id]
+            current_raw_label = model.names[cls_id]
 
-            if stable_label == current_label:
+            category, sub_item = CLASS_TO_CATEGORY.get(
+                current_raw_label, ("outros", SUB_ITEM_DEFAULT)
+            )
+            current_label = category
+            current_sub_item = sub_item
+
+            if stable_raw_label == current_raw_label:
                 stable_count += 1
             else:
-                stable_label = current_label
+                stable_raw_label = current_raw_label
                 stable_count = 1
 
             if stable_count >= REQUIRED_STABLE_FRAMES:
                 now = time.time()
                 if (
-                    current_label != last_saved_label
+                    current_raw_label != last_saved_raw_label
                     or (now - last_saved_time) > COOLDOWN_SECONDS
                 ):
-                    cat = current_label if current_label in counts else "outros"
-                    counts[cat] += 1
+                    counts[current_label] += 1
                     counts["total"] += 1
-                    last_saved_label = current_label
+
+                    if current_sub_item != current_label:
+                        sub_item_counts[current_sub_item] = (
+                            sub_item_counts.get(current_sub_item, 0) + 1
+                        )
+
+                    last_saved_raw_label = current_raw_label
                     last_saved_time = now
                     stable_count = 0
-                    print(
-                        f"[CONTADO] {current_label}  "
-                        f"conf={current_conf:.2f}  "
-                        f"total={counts['total']}"
-                    )
+
+                    if current_sub_item and current_sub_item != current_label:
+                        print(
+                            f"[CONTADO] {current_label} ({current_sub_item})  "
+                            f"conf={current_conf:.2f}  "
+                            f"total={counts['total']}"
+                        )
+                    else:
+                        print(
+                            f"[CONTADO] {current_label}  "
+                            f"conf={current_conf:.2f}  "
+                            f"total={counts['total']}"
+                        )
         else:
-            stable_label = None
+            stable_raw_label = None
             stable_count = 0
 
-        # --- Painel de contagens ---
         panel_lines = [
             f"Arroz:  {counts['arroz']}",
             f"Feijao: {counts['feijao']}",
@@ -101,23 +120,23 @@ def main():
             f"Total:  {counts['total']}",
         ]
 
-        # Deteccao atual
         if current_label:
-            status_text = f"Detectando: {current_label} ({current_conf:.0%})"
+            if current_sub_item and current_sub_item != current_label:
+                status_text = f"Detectando: {current_sub_item} -> {current_label} ({current_conf:.0%})"
+            else:
+                status_text = f"Detectando: {current_label} ({current_conf:.0%})"
             status_color = (0, 255, 0)
         else:
             status_text = "Nenhum objeto detectado"
             status_color = (0, 0, 255)
 
-        # Barra de estabilidade
-        if stable_label and stable_count < REQUIRED_STABLE_FRAMES:
+        if stable_raw_label and stable_count < REQUIRED_STABLE_FRAMES:
             progress = stable_count / REQUIRED_STABLE_FRAMES
             bar_text = f"Estabilizando: {stable_count}/{REQUIRED_STABLE_FRAMES}"
         else:
             progress = 0
             bar_text = ""
 
-        # Desenha painel
         cv2.rectangle(annotated, (5, 5), (280, 155), (30, 30, 30), -1)
 
         for i, line in enumerate(panel_lines):
@@ -128,7 +147,6 @@ def main():
         cv2.putText(annotated, status_text, (10, 135),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, status_color, 1)
 
-        # Barra de progresso
         if bar_text:
             h_frame = annotated.shape[0]
             bar_y = h_frame - 30
@@ -149,6 +167,10 @@ def main():
     print("\n=== Resumo da sessao ===")
     for k, v in counts.items():
         print(f"  {k}: {v}")
+    if sub_item_counts:
+        print("\n=== Detalhamento sub-itens (outros) ===")
+        for k, v in sub_item_counts.items():
+            print(f"  {k}: {v}")
 
 
 if __name__ == "__main__":
