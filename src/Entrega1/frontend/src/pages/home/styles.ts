@@ -1,12 +1,57 @@
 import { styled } from "@mui/material/styles";
 import Box from "@mui/material/Box";
+import Typography from "@mui/material/Typography";
 
 import { palette } from "../../theme/palette";
 
 
-export const PageContainer = styled(Box)({
-  minHeight: "100vh",
-  backgroundColor: palette.neutral.background,
+export const HomeRoot = styled(Box)({
   position: "relative",
-  overflow: "hidden",
+  zIndex: 1,
+});
+
+export const HeaderSection = styled(Box)({
+  marginBottom: 32,
+});
+
+export const PageTitle = styled(Typography)({
+  fontFamily: "'Manrope', sans-serif",
+  fontWeight: 800,
+  fontSize: 28,
+  color: palette.neutral.onSurface,
+  lineHeight: 1.2,
+});
+
+export const SummaryRow = styled(Box)({
+  display: "flex",
+  gap: 20,
+  marginBottom: 32,
+  flexWrap: "wrap",
+});
+
+export const CollectionSectionTitle = styled(Typography)({
+  fontFamily: "'Manrope', sans-serif",
+  fontWeight: 700,
+  fontSize: 17,
+  color: palette.neutral.onSurface,
+  marginBottom: 16,
+});
+
+export const CollectionRow = styled(Box)({
+  display: "flex",
+  flexDirection: "row",
+  gap: 16,
+  marginBottom: 32,
+  flexWrap: "wrap",
+});
+
+export const ActionsRow = styled(Box)({
+  display: "flex",
+  gap: 16,
+  marginBottom: 32,
+});
+
+export const HistorySection = styled(Box)({
+  display: "flex",
+  flexDirection: "column",
 });

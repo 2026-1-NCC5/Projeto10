@@ -34,6 +34,11 @@ export const PrimaryButton = styled(ButtonBase)({
   "&:hover .material-symbols-outlined": {
     transform: "translateX(4px)",
   },
+  "&.Mui-disabled": {
+    opacity: 0.4,
+    cursor: "not-allowed",
+    filter: "none",
+  },
 });
 
 export const SecondaryButton = styled(ButtonBase)({

@@ -1,3 +1,4 @@
+import type { ReactElement } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ThemeProvider } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
@@ -5,14 +6,23 @@ import GlobalStyles from "@mui/material/GlobalStyles";
 
 import theme from "./theme/theme";
 import { globalStyles } from "./styles/global";
-import { AuthProvider } from "./contexts/AuthContext";
+import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute/ProtectedRoute";
 import SignupFlowRoute from "./components/SignupFlowRoute/SignupFlowRoute";
+import AppLayout from "./components/AppLayout/AppLayout";
 import LoginPage from "./pages/login/Login";
 import RegisterPage from "./pages/register/Register";
 import SelectRolePage from "./pages/select-role/SelectRole";
 import HomePage from "./pages/home/Home";
+import DataPage from "./pages/data/Data";
+import TeamsPage from "./pages/teams/Teams";
+import AdminPage from "./pages/admin/Admin";
 
+
+function RoleRoute({ roles, children }: { roles: string[]; children: ReactElement }) {
+  const { user } = useAuth();
+  return roles.includes(user?.role ?? "") ? children : <Navigate to="/home" replace />;
+}
 
 function App() {
   return (
@@ -33,7 +43,26 @@ function App() {
               }
             />
             <Route element={<ProtectedRoute />}>
-              <Route path="/home" element={<HomePage />} />
+              <Route element={<AppLayout />}>
+                <Route path="/home" element={<HomePage />} />
+                <Route path="/teams" element={<TeamsPage />} />
+                <Route
+                  path="/data"
+                  element={
+                    <RoleRoute roles={["admin", "coordinator"]}>
+                      <DataPage />
+                    </RoleRoute>
+                  }
+                />
+                <Route
+                  path="/admin"
+                  element={
+                    <RoleRoute roles={["admin"]}>
+                      <AdminPage />
+                    </RoleRoute>
+                  }
+                />
+              </Route>
             </Route>
             <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>

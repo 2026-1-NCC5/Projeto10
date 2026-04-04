@@ -36,6 +36,20 @@ export const registerSchema = z
     path: ["confirmPassword"],
   });
 
+export const createTeamSchema = z.object({
+  name: z
+    .string()
+    .min(1, "Nome da equipe é obrigatório")
+    .max(80, "Nome deve ter no máximo 80 caracteres")
+    .regex(/\S/, "Nome não pode ser apenas espaços"),
+  description: z
+    .string()
+    .max(300, "Descrição deve ter no máximo 300 caracteres")
+    .optional(),
+});
+
 export type LoginFormData = z.infer<typeof loginSchema>;
 
 export type RegisterFormData = z.infer<typeof registerSchema>;
+
+export type CreateTeamFormData = z.infer<typeof createTeamSchema>;

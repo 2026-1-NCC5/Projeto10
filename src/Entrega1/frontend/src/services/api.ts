@@ -1,3 +1,11 @@
+import type {
+  Team,
+  JoinRequest,
+  CollectionEntry,
+  CollectionSummary,
+  BatchItem,
+} from "../types";
+
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8001/api";
 const CAMERA_URL = import.meta.env.VITE_CAMERA_URL || "http://localhost:8000";
 
@@ -75,4 +83,62 @@ export function getCameraStreamUrl(sessionId: string): string {
 export function getCameraWsUrl(sessionId: string): string {
   const wsBase = CAMERA_URL.replace(/^http/, "ws");
   return `${wsBase}/ws/sessions/${sessionId}`;
+}
+
+export async function getTeams(_token: string): Promise<Team[]> {
+  return Promise.reject(new Error("GET /api/teams not implemented"));
+}
+
+export async function createTeam(
+  _token: string,
+  _payload: { name: string; description?: string }
+): Promise<Team> {
+  return Promise.reject(new Error("POST /api/teams not implemented"));
+}
+
+export async function requestJoinTeam(
+  _token: string,
+  _teamId: string
+): Promise<JoinRequest> {
+  return Promise.reject(new Error("POST /api/teams/:id/join-requests not implemented"));
+}
+
+export async function getTeamJoinRequests(
+  _token: string,
+  _teamId: string
+): Promise<JoinRequest[]> {
+  return Promise.reject(new Error("GET /api/teams/:id/join-requests not implemented"));
+}
+
+export async function approveJoinRequest(
+  _token: string,
+  _teamId: string,
+  _requestId: string
+): Promise<JoinRequest> {
+  return Promise.reject(new Error("PATCH /api/teams/:id/join-requests/:requestId not implemented"));
+}
+
+export async function getUserHistory(_token: string): Promise<CollectionEntry[]> {
+  return Promise.reject(new Error("GET /api/collections/me not implemented"));
+}
+
+export async function getTeamHistory(
+  _token: string,
+  _teamId: string
+): Promise<CollectionEntry[]> {
+  return Promise.reject(new Error("GET /api/collections/team/:teamId not implemented"));
+}
+
+export async function getTeamSummary(
+  _token: string,
+  _teamId: string
+): Promise<CollectionSummary> {
+  return Promise.reject(new Error("GET /api/collections/team/:teamId/summary not implemented"));
+}
+
+export async function submitBatch(
+  _token: string,
+  _items: BatchItem[]
+): Promise<{ batchId: string }> {
+  return Promise.reject(new Error("POST /api/collections/batch not implemented"));
 }
