@@ -4,10 +4,15 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+import models.team
+import models.invitation
 from database import engine, Base
 from api.routes.auth import router as auth_router
 from api.routes.users import router as users_router
 from api.routes.health import router as health_router
+from api.routes.teams import router as teams_router
+from api.routes.collections import router as collections_router
+from api.routes.invitations import router as invitations_router
 
 
 @asynccontextmanager
@@ -34,3 +39,6 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(users_router)
 app.include_router(health_router)
+app.include_router(teams_router)
+app.include_router(collections_router)
+app.include_router(invitations_router)

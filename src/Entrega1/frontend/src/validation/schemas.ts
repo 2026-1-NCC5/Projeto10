@@ -46,6 +46,11 @@ export const createTeamSchema = z.object({
     .string()
     .max(300, "Descrição deve ter no máximo 300 caracteres")
     .optional(),
+  maxMembers: z
+    .number({ invalid_type_error: "Número máximo deve ser um número" })
+    .int()
+    .min(1, "Número máximo deve ser pelo menos 1")
+    .default(30),
 });
 
 export type LoginFormData = z.infer<typeof loginSchema>;

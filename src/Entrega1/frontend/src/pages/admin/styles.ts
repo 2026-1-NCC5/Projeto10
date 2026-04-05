@@ -101,35 +101,42 @@ export const ExpandButton = styled(ButtonBase)({
   "&:hover": {
     backgroundColor: palette.neutral.surfaceContainerHighest,
   },
+  "&.Mui-disabled": {
+    opacity: 0.35,
+    cursor: "not-allowed",
+    pointerEvents: "auto",
+  },
 });
 
 export const MembersPanel = styled(Box)({
   backgroundColor: palette.neutral.surfaceContainerLow,
   borderRadius: 8,
-  padding: "12px 16px",
+  padding: "16px 20px",
   marginTop: 8,
   marginBottom: 8,
   display: "flex",
   flexDirection: "column",
-  gap: 8,
+  gap: 4,
 });
 
 export const MemberRow = styled(Box)({
   display: "flex",
   alignItems: "center",
-  gap: 10,
+  gap: 12,
+  padding: "8px 0",
 });
 
 export const MemberName = styled(Typography)({
   fontFamily: "'Inter', sans-serif",
-  fontSize: 13,
+  fontSize: 14,
+  fontWeight: 500,
   color: palette.neutral.onSurface,
   flex: 1,
 });
 
 export const MemberRole = styled(Typography)({
   fontFamily: "'Inter', sans-serif",
-  fontSize: 12,
+  fontSize: 13,
   color: palette.neutral.onSurfaceVariant,
 });
 

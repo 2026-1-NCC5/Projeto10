@@ -44,3 +44,15 @@ def get_current_user(
             detail="Token inválido",
         )
     return user
+
+
+def require_admin(current_user: User = Depends(get_current_user)) -> User:
+    if current_user.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acesso negado")
+    return current_user
+
+
+def require_admin_or_coordinator(current_user: User = Depends(get_current_user)) -> User:
+    if current_user.role not in ("admin", "coordinator"):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acesso negado")
+    return current_user

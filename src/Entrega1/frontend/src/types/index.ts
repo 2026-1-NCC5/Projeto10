@@ -16,12 +16,14 @@ export type TeamMember = {
   name: string;
   email: string;
   role: string;
+  teamRole: "leader" | "member";
 };
 
 export type Team = {
   id: string;
   name: string;
   description?: string;
+  maxMembers: number;
   members: TeamMember[];
 };
 
@@ -45,4 +47,21 @@ export type BatchItem = {
   itemName?: string;
   quantity: number;
   weight: number;
+};
+
+export type UserSummary = {
+  id: string;
+  name: string;
+  email: string;
+  role: string | null;
+  teamId: string | null;
+};
+
+export type TeamInvitation = {
+  id: string;
+  teamId: string;
+  teamName: string;
+  invitedByName: string;
+  status: "pending" | "accepted" | "rejected";
+  createdAt: string;
 };

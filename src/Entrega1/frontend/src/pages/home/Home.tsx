@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { useAuth } from "../../contexts/AuthContext";
@@ -14,11 +14,13 @@ import {
   HomeRoot,
   HeaderSection,
   PageTitle,
+  TeamNameSubtitle,
   SummaryRow,
   CollectionRow,
   CollectionSectionTitle,
   ActionsRow,
   HistorySection,
+  SubmitErrorText,
 } from "./styles";
 
 
@@ -31,14 +33,19 @@ const emptyOutros: BlockForm = { quantity: "", weight: "", itemName: "" };
 function HomePage() {
   const { user, token } = useAuth();
   const navigate = useNavigate();
+  const historyRef = useRef<HTMLDivElement>(null);
 
-  const userTeamId: string | null = null;
+  const userTeamId: string | null = user?.team_id ?? null;
   const hasTeam = userTeamId !== null;
+  const isOperator = user?.role === "operator";
 
   const [batchItems, setBatchItems] = useState<BatchItem[]>([]);
+  const [personalHistory, setPersonalHistory] = useState<CollectionEntry[]>([]);
   const [teamHistory, setTeamHistory] = useState<CollectionEntry[]>([]);
+  const [teamName, setTeamName] = useState<string | null>(null);
   const [summary, setSummary] = useState<CollectionSummary | null>(null);
   const [historyTab, setHistoryTab] = useState<"personal" | "team">("personal");
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const [arrozForm, setArrozForm] = useState<BlockForm>(emptyArroz);
   const [feijaoForm, setFeijaoForm] = useState<BlockForm>(emptyFeijao);
@@ -46,9 +53,20 @@ function HomePage() {
 
   useEffect(() => {
     if (!token || !userTeamId) return;
-    api.getTeamHistory(token, userTeamId).then(setTeamHistory).catch(() => setTeamHistory([]));
-    api.getTeamSummary(token, userTeamId).then(setSummary).catch(() => setSummary(null));
-  }, [token, userTeamId]);
+    if (!isOperator) {
+      api.getTeamHistory(token, userTeamId).then(setTeamHistory).catch(() => setTeamHistory([]));
+      api.getTeamSummary(token, userTeamId).then(setSummary).catch(() => setSummary(null));
+    }
+    api.getTeams(token).then((teams) => {
+      const found = teams.find((t) => t.id === userTeamId);
+      setTeamName(found?.name ?? null);
+    }).catch(() => {});
+  }, [token, userTeamId, isOperator]);
+
+  useEffect(() => {
+    if (!token) return;
+    api.getUserHistory(token).then(setPersonalHistory).catch(() => setPersonalHistory([]));
+  }, [token]);
 
   function handleArrozChange(field: keyof BlockForm, value: string) {
     setArrozForm((prev) => ({ ...prev, [field]: value }));
@@ -91,21 +109,17 @@ function HomePage() {
     setOutrosForm(emptyOutros);
   }
 
-  function handleFinishBatch() {
+  async function handleFinishBatch() {
     if (!token || batchItems.length === 0) return;
-    api.submitBatch(token, batchItems).catch(() => {});
-    setBatchItems([]);
+    setSubmitError(null);
+    try {
+      await api.submitBatch(token, batchItems);
+      setBatchItems([]);
+      api.getUserHistory(token).then(setPersonalHistory).catch(() => {});
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : "Erro ao enviar lote");
+    }
   }
-
-  const personalHistory: CollectionEntry[] = batchItems.map((item, i) => ({
-    id: `batch-${i}`,
-    itemType: item.itemType,
-    itemName: item.itemName,
-    quantity: item.quantity,
-    weight: item.weight,
-    addedBy: user?.name ?? "Você",
-    addedAt: new Date().toISOString(),
-  }));
 
   const arrozDisabled = !arrozForm.quantity || !arrozForm.weight;
   const feijaoDisabled = !feijaoForm.quantity || !feijaoForm.weight;
@@ -115,29 +129,32 @@ function HomePage() {
     <HomeRoot>
       <HeaderSection>
         <PageTitle>Coleta de Itens</PageTitle>
+        {hasTeam && teamName && <TeamNameSubtitle>{teamName}</TeamNameSubtitle>}
       </HeaderSection>
 
       {!hasTeam && (
         <NoTeamBanner onGoToTeams={() => navigate("/teams")} />
       )}
 
-      <SummaryRow>
-        <SummaryCard
-          icon="inventory_2"
-          label="Total coletado"
-          value={summary?.totalCollected ?? "—"}
-        />
-        <SummaryCard
-          icon="calendar_month"
-          label="Coletado este mês"
-          value={summary?.collectedThisMonth ?? "—"}
-        />
-        <SummaryCard
-          icon="scale"
-          label="Peso total (kg)"
-          value={summary ? `${summary.totalWeight} kg` : "—"}
-        />
-      </SummaryRow>
+      {!isOperator && (
+        <SummaryRow>
+          <SummaryCard
+            icon="inventory_2"
+            label="Total coletado"
+            value={summary?.totalCollected ?? "—"}
+          />
+          <SummaryCard
+            icon="calendar_month"
+            label="Coletado este mês"
+            value={summary?.collectedThisMonth ?? "—"}
+          />
+          <SummaryCard
+            icon="scale"
+            label="Peso total (kg)"
+            value={summary ? `${summary.totalWeight} kg` : "—"}
+          />
+        </SummaryRow>
+      )}
 
       <CollectionSectionTitle>Registrar Coleta</CollectionSectionTitle>
       <CollectionRow>
@@ -168,6 +185,8 @@ function HomePage() {
         />
       </CollectionRow>
 
+      {submitError && <SubmitErrorText>{submitError}</SubmitErrorText>}
+
       <ActionsRow>
         <StyledButton
           variant="primary"
@@ -177,20 +196,25 @@ function HomePage() {
         >
           Finalizar Lote
         </StyledButton>
-        <StyledButton variant="secondary" icon="history">
+        <StyledButton
+          variant="secondary"
+          icon="history"
+          onClick={() => historyRef.current?.scrollIntoView({ behavior: "smooth" })}
+        >
           Histórico
         </StyledButton>
       </ActionsRow>
 
-      <HistorySection>
-        <HistoryToggle active={historyTab} onChange={setHistoryTab} />
-        {historyTab === "personal" ? (
+      <HistorySection ref={historyRef}>
+        {!isOperator && <HistoryToggle active={historyTab} onChange={setHistoryTab} />}
+        {(isOperator || historyTab === "personal") && (
           <CollectionTable
             title="Meu Histórico"
             entries={personalHistory}
-            emptyMessage="Você ainda não adicionou itens neste lote."
+            emptyMessage="Nenhuma coleta registrada ainda."
           />
-        ) : (
+        )}
+        {!isOperator && historyTab === "team" && (
           <CollectionTable
             title="Histórico da Equipe"
             entries={teamHistory}

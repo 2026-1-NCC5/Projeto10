@@ -22,6 +22,13 @@ export const PageTitle = styled(Typography)({
   lineHeight: 1.2,
 });
 
+export const TeamNameSubtitle = styled(Typography)({
+  fontFamily: "'Inter', sans-serif",
+  fontSize: 14,
+  color: palette.neutral.onSurfaceVariant,
+  marginTop: 6,
+});
+
 export const SummaryRow = styled(Box)({
   display: "flex",
   gap: 20,
@@ -54,4 +61,11 @@ export const ActionsRow = styled(Box)({
 export const HistorySection = styled(Box)({
   display: "flex",
   flexDirection: "column",
+});
+
+export const SubmitErrorText = styled(Typography)({
+  fontFamily: "'Inter', sans-serif",
+  fontSize: 13,
+  color: palette.error.main,
+  marginBottom: 8,
 });

@@ -8,9 +8,10 @@ interface TeamCardProps {
   onRequestJoin: (teamId: string) => void;
   joinRequested?: boolean;
   isMember?: boolean;
+  canJoin?: boolean;
 }
 
-function TeamCard({ team, onRequestJoin, joinRequested, isMember }: TeamCardProps) {
+function TeamCard({ team, onRequestJoin, joinRequested, isMember, canJoin = true }: TeamCardProps) {
   const memberCount = team.members.length;
   const memberLabel = memberCount === 0
     ? "Sem membros"
@@ -28,7 +29,7 @@ function TeamCard({ team, onRequestJoin, joinRequested, isMember }: TeamCardProp
       </CardBody>
       {isMember ? (
         <JoinedBadge>Sua equipe</JoinedBadge>
-      ) : joinRequested ? (
+      ) : !canJoin ? null : joinRequested ? (
         <StyledButton
           variant="secondary"
           disabled
