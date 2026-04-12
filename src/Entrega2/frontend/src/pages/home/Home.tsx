@@ -1,12 +1,14 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { useAuth } from "../../contexts/AuthContext";
 import * as api from "../../services/api";
-import type { BatchItem } from "../../types";
+import type { BatchItem, CollectionEntry, Team } from "../../types";
 import NoTeamBanner from "../../components/NoTeamBanner/NoTeamBanner";
 import CollectionBlock from "../../components/CollectionBlock/CollectionBlock";
 import StyledButton from "../../components/StyledButton/StyledButton";
+import CollectionHistory from "../../components/CollectionHistory/CollectionHistory";
+import TeamTabs from "../../components/TeamTabs/TeamTabs";
 import {
   HomeRoot,
   HeaderSection,
@@ -29,12 +31,21 @@ function HomePage() {
   const { user, token } = useAuth();
   const navigate = useNavigate();
 
+  const role = user?.role ?? null;
+  const isOperator = role === "operator";
+  const isAdmin = role === "admin";
+  const isCoordinator = role === "coordinator";
+
   const userTeamId: string | null = user?.team_id ?? null;
   const hasTeam = userTeamId !== null;
 
   const [batchItems, setBatchItems] = useState<BatchItem[]>([]);
   const [teamName, setTeamName] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [historyKey, setHistoryKey] = useState(0);
+
+  const [adminTeams, setAdminTeams] = useState<Team[]>([]);
+  const [adminTeamId, setAdminTeamId] = useState<string>("");
 
   const [arrozForm, setArrozForm] = useState<BlockForm>(emptyArroz);
   const [feijaoForm, setFeijaoForm] = useState<BlockForm>(emptyFeijao);
@@ -47,6 +58,17 @@ function HomePage() {
       .then((t) => setTeamName(t?.name ?? null))
       .catch(() => setTeamName(null));
   }, [token, userTeamId]);
+
+  useEffect(() => {
+    if (!token || !isAdmin) return;
+    api
+      .getTeams(token)
+      .then((ts) => {
+        setAdminTeams(ts);
+        if (ts.length > 0 && !adminTeamId) setAdminTeamId(ts[0].id);
+      })
+      .catch(() => setAdminTeams([]));
+  }, [token, isAdmin, adminTeamId]);
 
   function handleArrozChange(field: keyof BlockForm, value: string) {
     setArrozForm((prev) => ({ ...prev, [field]: value }));
@@ -95,14 +117,28 @@ function HomePage() {
     try {
       await api.submitBatch(token, batchItems);
       setBatchItems([]);
+      setHistoryKey((k) => k + 1);
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : "Erro ao enviar lote");
     }
   }
 
+  const fetchHistory = useCallback((): Promise<CollectionEntry[]> => {
+    if (!token) return Promise.resolve([]);
+    if (isOperator) return api.getMyCollections(token);
+    if (isCoordinator && userTeamId) return api.getTeamCollections(token, userTeamId);
+    if (isAdmin && adminTeamId) return api.getTeamCollections(token, adminTeamId);
+    return Promise.resolve([]);
+  }, [token, isOperator, isCoordinator, isAdmin, userTeamId, adminTeamId]);
+
   const arrozDisabled = !arrozForm.quantity || !arrozForm.weight;
   const feijaoDisabled = !feijaoForm.quantity || !feijaoForm.weight;
   const outrosDisabled = !outrosForm.quantity || !outrosForm.weight || !outrosForm.itemName;
+
+  const historyTitle = isOperator ? "Minhas coletas" : "Histórico da equipe";
+  const historyHint = isOperator
+    ? "Exibindo apenas registros que você criou."
+    : "Todos os registros desta equipe.";
 
   return (
     <HomeRoot>
@@ -111,7 +147,7 @@ function HomePage() {
         {hasTeam && teamName && <TeamNameSubtitle>{teamName}</TeamNameSubtitle>}
       </HeaderSection>
 
-      {!hasTeam && <NoTeamBanner onGoToTeams={() => navigate("/teams")} />}
+      {!hasTeam && !isAdmin && <NoTeamBanner onGoToTeams={() => navigate("/teams")} />}
 
       <CollectionSectionTitle>Registrar Coleta</CollectionSectionTitle>
       <CollectionRow>
@@ -151,9 +187,22 @@ function HomePage() {
           onClick={handleFinishBatch}
           disabled={batchItems.length === 0}
         >
-          Finalizar Lote
+          Finalizar Lote ({batchItems.length})
         </StyledButton>
       </ActionsRow>
+
+      {isAdmin && adminTeams.length > 0 && (
+        <TeamTabs teams={adminTeams} selectedId={adminTeamId} onSelect={setAdminTeamId} />
+      )}
+
+      {(isOperator || (isCoordinator && userTeamId) || (isAdmin && adminTeamId)) && (
+        <CollectionHistory
+          fetchEntries={fetchHistory}
+          refreshKey={historyKey}
+          title={historyTitle}
+          hint={historyHint}
+        />
+      )}
     </HomeRoot>
   );
 }

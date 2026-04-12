@@ -22,10 +22,15 @@ import type {
   DashboardAllSummary,
   DashboardComparison,
   DashboardSummary,
+  FoodDistributionResponse,
+  OperatorComparisonResponse,
   Team,
 } from "../../types";
 import GlassPanel from "../../components/GlassPanel/GlassPanel";
 import EvidenceModal from "../../components/EvidenceModal/EvidenceModal";
+import ErrorBoundary from "../../components/ErrorBoundary/ErrorBoundary";
+import MetricCard from "../../components/MetricCard/MetricCard";
+import TeamTabs from "../../components/TeamTabs/TeamTabs";
 import { palette } from "../../theme/palette";
 import {
   DashboardRoot,
@@ -40,23 +45,44 @@ import {
   ComparisonRow,
   StatusPill,
   EvidenceButton,
-  SelectorRow,
-  Select,
+  TeamContextLabel,
+  MetricsGrid,
 } from "./styles";
 
 
 const CATEGORY_COLORS = [palette.primary.main, "#4DB5F5", palette.tertiary.main];
 
+const FOOD_COLORS = [
+  palette.primary.main,
+  "#4DB5F5",
+  palette.tertiary.main,
+  "#F5A623",
+  "#9B59B6",
+  "#E74C3C",
+  "#1ABC9C",
+  "#F39C12",
+];
+
+const BASE_CATEGORIES = ["arroz", "feijao", "outros"];
+
+
+function safeNumber(value: number | null | undefined): number {
+  return Number(value ?? 0);
+}
+
 
 function DashboardPage() {
   const { token, user } = useAuth();
   const isAdmin = user?.role === "admin";
+  const isCoordinator = user?.role === "coordinator";
 
   const [teams, setTeams] = useState<Team[]>([]);
   const [teamId, setTeamId] = useState<string>("");
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [allSummary, setAllSummary] = useState<DashboardAllSummary | null>(null);
   const [comparison, setComparison] = useState<DashboardComparison | null>(null);
+  const [operatorComparison, setOperatorComparison] = useState<OperatorComparisonResponse | null>(null);
+  const [foodDistribution, setFoodDistribution] = useState<FoodDistributionResponse | null>(null);
 
   const [evidenceOpen, setEvidenceOpen] = useState(false);
   const [evidenceCategory, setEvidenceCategory] = useState<string | null>(null);
@@ -82,13 +108,21 @@ function DashboardPage() {
     if (!token || !teamId) return;
     api.getDashboardSummary(token, teamId).then(setSummary).catch(() => setSummary(null));
     api.getDashboardComparison(token, teamId).then(setComparison).catch(() => setComparison(null));
+    api
+      .getOperatorComparison(token, teamId)
+      .then(setOperatorComparison)
+      .catch(() => setOperatorComparison(null));
+    api
+      .getFoodDistribution(token, teamId)
+      .then(setFoodDistribution)
+      .catch(() => setFoodDistribution(null));
   }, [token, teamId]);
 
   const categoryBars = useMemo(() => {
     if (!summary) return [];
     return summary.countsByCategory.map((c) => ({
       name: c.category,
-      weight: Number(c.totalWeightG.toFixed(0)),
+      weight: Number(safeNumber(c.totalWeightG).toFixed(0)),
       count: c.count,
     }));
   }, [summary]);
@@ -104,7 +138,7 @@ function DashboardPage() {
     if (!summary) return [];
     return summary.timeseries.map((p) => ({
       date: p.date,
-      weight: Number(p.totalWeightG.toFixed(0)),
+      weight: Number(safeNumber(p.totalWeightG).toFixed(0)),
     }));
   }, [summary]);
 
@@ -113,11 +147,71 @@ function DashboardPage() {
     return allSummary.teams.map((t) => {
       const row: Record<string, string | number> = { name: t.teamName };
       t.byCategory.forEach((c) => {
-        row[c.category] = Number(c.totalWeightG.toFixed(0));
+        row[c.category] = Number(safeNumber(c.totalWeightG).toFixed(0));
       });
       return row;
     });
   }, [allSummary]);
+
+  const operatorChartData = useMemo(() => {
+    if (!operatorComparison) return [];
+    return operatorComparison.operators.map((o) => ({
+      name: o.operatorName,
+      manual: Number(safeNumber(o.manualWeightG * 1000).toFixed(0)),
+      ai: Number(safeNumber(o.aiWeightG).toFixed(0)),
+    }));
+  }, [operatorComparison]);
+
+  const foodPieData = useMemo(() => {
+    if (!foodDistribution) return [];
+    return foodDistribution.items
+      .map((item) => ({
+        name: item.itemName,
+        value: safeNumber(item.aiCount) + safeNumber(item.manualCount),
+        category: item.category,
+      }))
+      .filter((d) => d.value > 0);
+  }, [foodDistribution]);
+
+  const tableRows = useMemo(() => {
+    const hasSubItems = foodDistribution?.items.some(
+      (item) => !BASE_CATEGORIES.includes(item.itemName.toLowerCase())
+    );
+    if (hasSubItems && foodDistribution) {
+      const evidenceByCategory = new Map(
+        (comparison?.categories ?? []).map((c) => [c.category, c.evidence])
+      );
+      return foodDistribution.items.map((item) => ({
+        key: `${item.category}-${item.itemName}`,
+        label: item.itemName,
+        category: item.category,
+        manualCount: item.manualCount,
+        manualWeightG: item.manualWeightG,
+        aiCount: item.aiCount,
+        aiWeightG: item.aiWeightG,
+        match: item.manualCount === item.aiCount,
+        evidence: evidenceByCategory.get(item.category) ?? [],
+        isSubItem: true,
+      }));
+    }
+    return (comparison?.categories ?? []).map((c) => ({
+      key: c.category,
+      label: c.category,
+      category: c.category,
+      manualCount: c.manualCount,
+      manualWeightG: c.manualWeightG,
+      aiCount: c.aiCount,
+      aiWeightG: c.aiWeightG,
+      match: c.match,
+      evidence: c.evidence,
+      isSubItem: false,
+    }));
+  }, [foodDistribution, comparison]);
+
+  const totalWeightG = safeNumber(summary?.totals.total_g);
+  const riceG = safeNumber(summary?.totals.rice_g);
+  const beansG = safeNumber(summary?.totals.beans_g);
+  const othersG = safeNumber(summary?.totals.others_g);
 
   function openEvidence(category: string, evidence: ComparisonEvidence[]) {
     setEvidenceCategory(category);
@@ -129,79 +223,131 @@ function DashboardPage() {
     <DashboardRoot>
       <PageTitle>Dashboard</PageTitle>
       <PageSubtitle>
-        Análise das detecções da IA — fonte única de verdade para os dashboards.
+        Análise das detecções da IA e comparação com registros da equipe.
       </PageSubtitle>
 
-      {isAdmin && (
-        <SelectorRow>
-          <Select value={teamId} onChange={(e) => setTeamId(e.target.value)}>
-            {teams.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-              </option>
-            ))}
-          </Select>
-        </SelectorRow>
+      {isCoordinator && summary?.teamName && (
+        <TeamContextLabel>
+          <span className="material-symbols-outlined">groups</span>
+          Equipe: {summary.teamName}
+        </TeamContextLabel>
       )}
 
-      <ChartsGrid>
-        <GlassPanel>
-          <ChartPanel>
-            <ChartTitle>Peso total por categoria (g)</ChartTitle>
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={categoryBars}>
-                <CartesianGrid strokeDasharray="3 3" stroke={palette.neutral.outlineVariant} />
-                <XAxis dataKey="name" stroke={palette.neutral.onSurfaceVariant} />
-                <YAxis stroke={palette.neutral.onSurfaceVariant} />
-                <Tooltip />
-                <Bar dataKey="weight" fill={palette.primary.main} />
-              </BarChart>
-            </ResponsiveContainer>
-          </ChartPanel>
-        </GlassPanel>
+      {isAdmin && (
+        <TeamTabs teams={teams} selectedId={teamId} onSelect={setTeamId} />
+      )}
 
-        <GlassPanel>
-          <ChartPanel>
-            <ChartTitle>Distribuição por categoria</ChartTitle>
-            <ResponsiveContainer width="100%" height={220}>
-              <PieChart>
-                <Pie data={pieData} dataKey="value" nameKey="name" outerRadius={80} label>
-                  {pieData.map((_, i) => (
-                    <Cell key={i} fill={CATEGORY_COLORS[i % CATEGORY_COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
-          </ChartPanel>
-        </GlassPanel>
+      <ErrorBoundary>
+        <MetricsGrid>
+          <MetricCard
+            label="Peso total (g)"
+            icon="scale"
+            value={totalWeightG.toFixed(0)}
+            hint="Acumulado pela IA"
+          />
+          <MetricCard
+            label="Arroz"
+            icon="rice_bowl"
+            value={`${riceG.toFixed(0)} g`}
+            hint={`${(safeNumber(summary?.countsByCategory.find((c) => c.category === "arroz")?.count)).toFixed(0)} itens`}
+          />
+          <MetricCard
+            label="Feijão"
+            icon="grain"
+            value={`${beansG.toFixed(0)} g`}
+            hint={`${(safeNumber(summary?.countsByCategory.find((c) => c.category === "feijao")?.count)).toFixed(0)} itens`}
+          />
+          <MetricCard
+            label="Outros"
+            icon="category"
+            value={`${othersG.toFixed(0)} g`}
+            hint={`${(safeNumber(summary?.countsByCategory.find((c) => c.category === "outros")?.count)).toFixed(0)} itens`}
+          />
+        </MetricsGrid>
 
-        <GlassPanel>
-          <ChartPanel>
-            <ChartTitle>Peso total ao longo do tempo (g)</ChartTitle>
-            <ResponsiveContainer width="100%" height={220}>
-              <LineChart data={lineData}>
-                <CartesianGrid strokeDasharray="3 3" stroke={palette.neutral.outlineVariant} />
-                <XAxis dataKey="date" stroke={palette.neutral.onSurfaceVariant} />
-                <YAxis stroke={palette.neutral.onSurfaceVariant} />
-                <Tooltip />
-                <Line
-                  type="monotone"
-                  dataKey="weight"
-                  stroke={palette.primary.main}
-                  strokeWidth={2}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </ChartPanel>
-        </GlassPanel>
-
-        {isAdmin && (
+        <ChartsGrid>
           <GlassPanel>
             <ChartPanel>
+              <ChartTitle>Peso total por categoria (g)</ChartTitle>
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={categoryBars}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={palette.neutral.outlineVariant} />
+                  <XAxis dataKey="name" stroke={palette.neutral.onSurfaceVariant} />
+                  <YAxis stroke={palette.neutral.onSurfaceVariant} />
+                  <Tooltip />
+                  <Bar dataKey="weight" fill={palette.primary.main} />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartPanel>
+          </GlassPanel>
+
+          <GlassPanel>
+            <ChartPanel>
+              <ChartTitle>Distribuição por alimento</ChartTitle>
+              <ResponsiveContainer width="100%" height={280}>
+                <PieChart>
+                  <Pie
+                    data={foodPieData.length > 0 ? foodPieData : pieData}
+                    dataKey="value"
+                    nameKey="name"
+                    outerRadius={90}
+                    label={({ name }) => name}
+                  >
+                    {(foodPieData.length > 0 ? foodPieData : pieData).map((_, i) => (
+                      <Cell key={i} fill={FOOD_COLORS[i % FOOD_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </ChartPanel>
+          </GlassPanel>
+
+          <GlassPanel>
+            <ChartPanel>
+              <ChartTitle>Peso total ao longo do tempo (g)</ChartTitle>
+              <ResponsiveContainer width="100%" height={280}>
+                <LineChart data={lineData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={palette.neutral.outlineVariant} />
+                  <XAxis dataKey="date" stroke={palette.neutral.onSurfaceVariant} />
+                  <YAxis stroke={palette.neutral.onSurfaceVariant} />
+                  <Tooltip />
+                  <Line
+                    type="monotone"
+                    dataKey="weight"
+                    stroke={palette.primary.main}
+                    strokeWidth={2}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </ChartPanel>
+          </GlassPanel>
+
+          <GlassPanel>
+            <ChartPanel>
+              <ChartTitle>Equipe × IA por operador (g)</ChartTitle>
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={operatorChartData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={palette.neutral.outlineVariant} />
+                  <XAxis dataKey="name" stroke={palette.neutral.onSurfaceVariant} />
+                  <YAxis stroke={palette.neutral.onSurfaceVariant} />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="manual" name="Equipe" fill={CATEGORY_COLORS[1]} />
+                  <Bar dataKey="ai" name="IA" fill={CATEGORY_COLORS[0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartPanel>
+          </GlassPanel>
+
+        </ChartsGrid>
+
+        {isAdmin && (
+          <GlassPanel sx={{ marginBottom: 3 }}>
+            <ChartPanel>
               <ChartTitle>Comparação entre equipes (g por categoria)</ChartTitle>
-              <ResponsiveContainer width="100%" height={220}>
+              <ResponsiveContainer width="100%" height={280}>
                 <BarChart data={allTeamsData}>
                   <CartesianGrid strokeDasharray="3 3" stroke={palette.neutral.outlineVariant} />
                   <XAxis dataKey="name" stroke={palette.neutral.onSurfaceVariant} />
@@ -216,41 +362,64 @@ function DashboardPage() {
             </ChartPanel>
           </GlassPanel>
         )}
-      </ChartsGrid>
 
-      <SectionHeader>Manual × IA — comparação por categoria</SectionHeader>
-      <GlassPanel>
-        <ComparisonTable>
-          <ComparisonHeaderRow>
-            <div>Categoria</div>
-            <div>Manual (qtd)</div>
-            <div>Manual (peso)</div>
-            <div>IA (qtd)</div>
-            <div>IA (peso g)</div>
-            <div>Status</div>
-            <div>Evidência</div>
-          </ComparisonHeaderRow>
-          {comparison?.categories.map((c) => (
-            <ComparisonRow key={c.category} mismatch={!c.match}>
-              <div style={{ textTransform: "capitalize" }}>{c.category}</div>
-              <div>{c.manualCount}</div>
-              <div>{c.manualWeightG.toFixed(1)}</div>
-              <div>{c.aiCount}</div>
-              <div>{c.aiWeightG.toFixed(0)}</div>
-              <div>
-                <StatusPill ok={c.match}>{c.match ? "Match" : "Divergência"}</StatusPill>
-              </div>
-              <div>
-                {!c.match && c.evidence.length > 0 && (
-                  <EvidenceButton onClick={() => openEvidence(c.category, c.evidence)}>
-                    Ver evidência
-                  </EvidenceButton>
-                )}
-              </div>
-            </ComparisonRow>
-          ))}
-        </ComparisonTable>
-      </GlassPanel>
+        <SectionHeader>Equipe × IA — Comparação por Categoria</SectionHeader>
+        <GlassPanel>
+          <ComparisonTable>
+            <ComparisonHeaderRow>
+              <div>Categoria</div>
+              <div>Equipe (qtd)</div>
+              <div>Equipe (peso)</div>
+              <div>IA (qtd)</div>
+              <div>IA (peso g)</div>
+              <div>Status</div>
+              <div>Evidência</div>
+            </ComparisonHeaderRow>
+            {tableRows.length === 0 ? (
+              <ComparisonRow>
+                <div style={{ gridColumn: "1 / -1", textAlign: "center", padding: 12 }}>
+                  Sem dados comparativos disponíveis.
+                </div>
+              </ComparisonRow>
+            ) : (
+              tableRows.map((row) => (
+                <ComparisonRow key={row.key} mismatch={!row.match}>
+                  <div style={{ textTransform: "capitalize" }}>
+                    {row.isSubItem && (
+                      <span
+                        style={{
+                          fontSize: 10,
+                          color: palette.neutral.onSurfaceVariant,
+                          marginRight: 4,
+                        }}
+                      >
+                        [{row.category}]
+                      </span>
+                    )}
+                    {row.label}
+                  </div>
+                  <div>{safeNumber(row.manualCount)}</div>
+                  <div>{safeNumber(row.manualWeightG).toFixed(1)}</div>
+                  <div>{safeNumber(row.aiCount)}</div>
+                  <div>{safeNumber(row.aiWeightG).toFixed(0)}</div>
+                  <div>
+                    <StatusPill ok={row.match}>
+                      {row.match ? "Match" : "Divergência"}
+                    </StatusPill>
+                  </div>
+                  <div>
+                    {row.evidence.length > 0 && (
+                      <EvidenceButton onClick={() => openEvidence(row.key, row.evidence)}>
+                        Ver evidência
+                      </EvidenceButton>
+                    )}
+                  </div>
+                </ComparisonRow>
+              ))
+            )}
+          </ComparisonTable>
+        </GlassPanel>
+      </ErrorBoundary>
 
       <EvidenceModal
         open={evidenceOpen}

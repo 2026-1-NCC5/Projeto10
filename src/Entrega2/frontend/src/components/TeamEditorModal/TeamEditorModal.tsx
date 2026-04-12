@@ -1,8 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
 
-import type { Team, UserSummary } from "../../types";
+import type { Team, TeamMember, UserSummary } from "../../types";
 import { useAuth } from "../../contexts/AuthContext";
 import * as api from "../../services/api";
+import {
+  addMember,
+  diffTeamDraft,
+  fromTeam,
+  hasChanges,
+  removeMember,
+  setDescription,
+  setName,
+  validateDraft,
+} from "../../services/teamDraft";
+import type { TeamDraft } from "../../services/teamDraft";
 import StyledButton from "../StyledButton/StyledButton";
 import StyledInput from "../StyledInput/StyledInput";
 import {
@@ -40,133 +51,107 @@ const roleLabel: Record<string, string> = {
 };
 
 
+function userToMember(user: UserSummary): TeamMember {
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role ?? "operator",
+  };
+}
+
+
+function emptyDraft(): TeamDraft {
+  return { name: "", description: "", members: [] };
+}
+
+
 function TeamEditorModal({ open, mode, team, onClose, onSaved }: Props) {
   const { token } = useAuth();
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
+  const [draft, setDraft] = useState<TeamDraft>(emptyDraft);
+  const [initialDraft, setInitialDraft] = useState<TeamDraft>(emptyDraft);
   const [unassigned, setUnassigned] = useState<UserSummary[]>([]);
-  const [selectedCoordinators, setSelectedCoordinators] = useState<Set<string>>(new Set());
-  const [selectedMembers, setSelectedMembers] = useState<Set<string>>(new Set());
   const [error, setError] = useState("");
-  const [editValid, setEditValid] = useState<{ valid: boolean; issues: string[] } | null>(null);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!open || !token) return;
     setError("");
+    setSaving(false);
     if (mode === "create") {
-      setName("");
-      setDescription("");
-      setSelectedCoordinators(new Set());
-      setSelectedMembers(new Set());
-      api.getUsers(token, { unassigned: true }).then(setUnassigned).catch(() => setUnassigned([]));
+      const fresh = emptyDraft();
+      setDraft(fresh);
+      setInitialDraft(fresh);
     } else if (team) {
-      setName(team.name);
-      setDescription(team.description ?? "");
-      api.getUsers(token, { unassigned: true }).then(setUnassigned).catch(() => setUnassigned([]));
-      api.validateTeam(token, team.id).then(setEditValid).catch(() => setEditValid(null));
+      const fresh = fromTeam(team);
+      setDraft(fresh);
+      setInitialDraft(fresh);
     }
+    api
+      .getUsers(token, { unassigned: true })
+      .then(setUnassigned)
+      .catch(() => setUnassigned([]));
   }, [open, mode, team, token]);
 
-  const createValidation = useMemo(() => {
-    const issues: string[] = [];
-    if (selectedCoordinators.size < 1) issues.push("Selecione pelo menos um coordenador");
-    const total = new Set([...selectedCoordinators, ...selectedMembers]).size;
-    if (total < 2) issues.push("A equipe precisa de pelo menos 2 membros");
-    if (!name.trim()) issues.push("Informe um nome");
-    return { valid: issues.length === 0, issues };
-  }, [selectedCoordinators, selectedMembers, name]);
+  const validation = useMemo(() => validateDraft(draft), [draft]);
+  const diff = useMemo(() => diffTeamDraft(initialDraft, draft), [initialDraft, draft]);
+  const dirty = hasChanges(diff);
 
-  const coordinators = unassigned.filter((u) => u.role === "coordinator");
-  const others = unassigned.filter((u) => u.role !== "coordinator");
+  const availableUsers = useMemo(() => {
+    const draftIds = new Set(draft.members.map((m) => m.id));
+    return unassigned.filter((u) => !draftIds.has(u.id));
+  }, [unassigned, draft.members]);
 
-  function toggleCoord(id: string) {
-    setSelectedCoordinators((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+  function handleAdd(user: UserSummary) {
+    setDraft((prev) => addMember(prev, userToMember(user)));
   }
 
-  function toggleMember(id: string) {
-    setSelectedMembers((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+  function handleRemove(userId: string) {
+    setDraft((prev) => removeMember(prev, userId));
   }
 
-  async function refreshEditValidation() {
-    if (!token || !team) return;
+  async function handleSave() {
+    if (!token || !validation.valid) return;
+    setSaving(true);
+    setError("");
     try {
-      const v = await api.validateTeam(token, team.id);
-      setEditValid(v);
-    } catch {
-      /* ignore */
-    }
-  }
-
-  async function handleRemoveMember(userId: string) {
-    if (!token || !team) return;
-    try {
-      await api.removeTeamMember(token, team.id, userId);
-      onSaved();
-      await refreshEditValidation();
-    } catch (e) {
-      setError((e as Error).message);
-    }
-  }
-
-  async function handleAddMember(userId: string) {
-    if (!token || !team) return;
-    try {
-      await api.addTeamMember(token, team.id, userId);
-      const fresh = await api.getUsers(token, { unassigned: true });
-      setUnassigned(fresh);
-      onSaved();
-      await refreshEditValidation();
-    } catch (e) {
-      setError((e as Error).message);
-    }
-  }
-
-  async function handleCreate() {
-    if (!token) return;
-    if (!createValidation.valid) return;
-    try {
-      await api.createTeam(token, {
-        name: name.trim(),
-        description: description.trim() || undefined,
-        coordinatorIds: Array.from(selectedCoordinators),
-        memberIds: Array.from(selectedMembers),
-      });
+      if (mode === "create") {
+        const coordinatorIds = draft.members
+          .filter((m) => m.role === "coordinator")
+          .map((m) => m.id);
+        const memberIds = draft.members
+          .filter((m) => m.role !== "coordinator")
+          .map((m) => m.id);
+        await api.createTeam(token, {
+          name: draft.name.trim(),
+          description: draft.description.trim() || undefined,
+          coordinatorIds,
+          memberIds,
+        });
+      } else if (team) {
+        await api.saveTeamDraft(token, team.id, diff);
+      }
       onSaved();
       onClose();
     } catch (e) {
       setError((e as Error).message);
+    } finally {
+      setSaving(false);
     }
   }
 
-  async function handleSaveMeta() {
-    if (!token || !team) return;
-    try {
-      await api.updateTeam(token, team.id, {
-        name: name.trim(),
-        description: description.trim() || undefined,
-      });
-      onSaved();
-      onClose();
-    } catch (e) {
-      setError((e as Error).message);
-    }
+  function handleClose() {
+    if (saving) return;
+    onClose();
   }
 
   return (
-    <ModalDialog open={open} onClose={onClose} maxWidth={false}>
+    <ModalDialog open={open} onClose={handleClose} maxWidth={false}>
       <ModalHeader>
-        <ModalTitle>{mode === "create" ? "Criar equipe" : `Editar ${team?.name ?? ""}`}</ModalTitle>
-        <CloseButton onClick={onClose}>
+        <ModalTitle>
+          {mode === "create" ? "Criar equipe" : `Editar ${team?.name ?? ""}`}
+        </ModalTitle>
+        <CloseButton onClick={handleClose}>
           <span className="material-symbols-outlined">close</span>
         </CloseButton>
       </ModalHeader>
@@ -176,146 +161,83 @@ function TeamEditorModal({ open, mode, team, onClose, onSaved }: Props) {
           label="Nome da equipe"
           icon="groups"
           type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
+          value={draft.name}
+          onChange={(e) => setDraft((prev) => setName(prev, e.target.value))}
         />
         <StyledInput
           label="Descrição (opcional)"
           icon="description"
           type="text"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
+          value={draft.description}
+          onChange={(e) => setDraft((prev) => setDescription(prev, e.target.value))}
         />
 
-        {mode === "create" ? (
-          <>
-            <SectionLabel>Coordenadores (obrigatório, ≥1)</SectionLabel>
-            <UserList>
-              {coordinators.length === 0 ? (
-                <EmptyText>Nenhum coordenador disponível.</EmptyText>
-              ) : (
-                coordinators.map((u) => (
-                  <UserRow
-                    key={u.id}
-                    selected={selectedCoordinators.has(u.id)}
-                    onClick={() => toggleCoord(u.id)}
-                  >
-                    <UserInfo>
-                      <UserName>{u.name}</UserName>
-                      <UserEmail>{u.email}</UserEmail>
-                    </UserInfo>
-                    <UserRoleBadge>{roleLabel[u.role ?? ""] ?? u.role}</UserRoleBadge>
-                  </UserRow>
-                ))
-              )}
-            </UserList>
+        <SectionLabel>Membros da equipe ({draft.members.length})</SectionLabel>
+        <UserList>
+          {draft.members.length === 0 ? (
+            <EmptyText>Nenhum membro adicionado ainda.</EmptyText>
+          ) : (
+            draft.members.map((m) => (
+              <UserRow key={m.id} onClick={() => handleRemove(m.id)}>
+                <UserInfo>
+                  <UserName>{m.name}</UserName>
+                  <UserEmail>{m.email}</UserEmail>
+                </UserInfo>
+                <UserRoleBadge>{roleLabel[m.role] ?? m.role}</UserRoleBadge>
+                <span className="material-symbols-outlined" style={{ fontSize: 18 }}>
+                  remove_circle
+                </span>
+              </UserRow>
+            ))
+          )}
+        </UserList>
 
-            <SectionLabel>Outros membros</SectionLabel>
-            <UserList>
-              {others.length === 0 ? (
-                <EmptyText>Nenhum usuário adicional disponível.</EmptyText>
-              ) : (
-                others.map((u) => (
-                  <UserRow
-                    key={u.id}
-                    selected={selectedMembers.has(u.id)}
-                    onClick={() => toggleMember(u.id)}
-                  >
-                    <UserInfo>
-                      <UserName>{u.name}</UserName>
-                      <UserEmail>{u.email}</UserEmail>
-                    </UserInfo>
-                    <UserRoleBadge>{roleLabel[u.role ?? ""] ?? u.role}</UserRoleBadge>
-                  </UserRow>
-                ))
-              )}
-            </UserList>
+        <SectionLabel>Adicionar usuários disponíveis</SectionLabel>
+        <UserList>
+          {availableUsers.length === 0 ? (
+            <EmptyText>Nenhum usuário disponível.</EmptyText>
+          ) : (
+            availableUsers.map((u) => (
+              <UserRow key={u.id} onClick={() => handleAdd(u)}>
+                <UserInfo>
+                  <UserName>{u.name}</UserName>
+                  <UserEmail>{u.email}</UserEmail>
+                </UserInfo>
+                <UserRoleBadge>{roleLabel[u.role ?? ""] ?? u.role}</UserRoleBadge>
+                <span className="material-symbols-outlined" style={{ fontSize: 18 }}>
+                  add_circle
+                </span>
+              </UserRow>
+            ))
+          )}
+        </UserList>
 
-            <ValidationBanner valid={createValidation.valid}>
-              {createValidation.valid
-                ? "Equipe válida — pronta para criar."
-                : createValidation.issues.join(" · ")}
-            </ValidationBanner>
-          </>
-        ) : (
-          <>
-            <SectionLabel>Membros atuais</SectionLabel>
-            <UserList>
-              {team && team.members.length === 0 ? (
-                <EmptyText>Nenhum membro.</EmptyText>
-              ) : (
-                team?.members.map((m) => (
-                  <UserRow key={m.id} onClick={() => handleRemoveMember(m.id)}>
-                    <UserInfo>
-                      <UserName>{m.name}</UserName>
-                      <UserEmail>{m.email}</UserEmail>
-                    </UserInfo>
-                    <UserRoleBadge>{roleLabel[m.role ?? ""] ?? m.role}</UserRoleBadge>
-                    <span className="material-symbols-outlined" style={{ fontSize: 18 }}>
-                      remove_circle
-                    </span>
-                  </UserRow>
-                ))
-              )}
-            </UserList>
-
-            <SectionLabel>Adicionar usuário não alocado</SectionLabel>
-            <UserList>
-              {unassigned.length === 0 ? (
-                <EmptyText>Nenhum usuário disponível.</EmptyText>
-              ) : (
-                unassigned.map((u) => (
-                  <UserRow key={u.id} onClick={() => handleAddMember(u.id)}>
-                    <UserInfo>
-                      <UserName>{u.name}</UserName>
-                      <UserEmail>{u.email}</UserEmail>
-                    </UserInfo>
-                    <UserRoleBadge>{roleLabel[u.role ?? ""] ?? u.role}</UserRoleBadge>
-                    <span className="material-symbols-outlined" style={{ fontSize: 18 }}>
-                      add_circle
-                    </span>
-                  </UserRow>
-                ))
-              )}
-            </UserList>
-
-            {editValid && (
-              <ValidationBanner valid={editValid.valid}>
-                {editValid.valid
-                  ? "Equipe válida."
-                  : editValid.issues.join(" · ")}
-              </ValidationBanner>
-            )}
-          </>
-        )}
+        <ValidationBanner valid={validation.valid}>
+          {validation.valid
+            ? dirty
+              ? "Pronto para salvar."
+              : "Sem alterações pendentes."
+            : validation.issues.join(" · ")}
+        </ValidationBanner>
 
         {error && <ValidationBanner valid={false}>{error}</ValidationBanner>}
       </ModalContent>
 
       <ModalFooter>
-        <StyledButton variant="secondary" onClick={onClose}>
-          {mode === "edit" ? "Fechar" : "Cancelar"}
+        <StyledButton variant="secondary" onClick={handleClose} disabled={saving}>
+          Cancelar
         </StyledButton>
-        {mode === "create" ? (
-          <StyledButton
-            variant="primary"
-            disabled={!createValidation.valid}
-            onClick={handleCreate}
-          >
-            Criar equipe
-          </StyledButton>
-        ) : (
-          <StyledButton
-            variant="primary"
-            disabled={!editValid?.valid}
-            onClick={handleSaveMeta}
-          >
-            Salvar nome/descrição
-          </StyledButton>
-        )}
+        <StyledButton
+          variant="primary"
+          disabled={!validation.valid || (mode === "edit" && !dirty) || saving}
+          onClick={handleSave}
+        >
+          {saving ? "Salvando..." : mode === "create" ? "Criar equipe" : "Salvar alterações"}
+        </StyledButton>
       </ModalFooter>
     </ModalDialog>
   );
 }
+
 
 export default TeamEditorModal;

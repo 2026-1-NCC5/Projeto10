@@ -6,10 +6,14 @@ from api.schemas import (
     DashboardAllSummaryResponse,
     DashboardComparisonResponse,
     DashboardSummaryResponse,
+    FoodDistributionResponse,
+    OperatorComparisonResponse,
 )
 from models.user import User
 from services.dashboard_service import (
     get_all_teams_summary,
+    get_food_distribution,
+    get_operator_comparison,
     get_team_comparison,
     get_team_summary,
 )
@@ -57,3 +61,23 @@ def dashboard_comparison(
 ):
     _resolve_team_access(current_user, team_id, db)
     return get_team_comparison(db, team_id)
+
+
+@router.get("/comparison/by-operator", response_model=OperatorComparisonResponse)
+def dashboard_comparison_by_operator(
+    team_id: str = Query(...),
+    current_user: User = Depends(require_dashboard_access),
+    db: Session = Depends(get_db),
+):
+    _resolve_team_access(current_user, team_id, db)
+    return get_operator_comparison(db, team_id)
+
+
+@router.get("/food-distribution", response_model=FoodDistributionResponse)
+def dashboard_food_distribution(
+    team_id: str = Query(...),
+    current_user: User = Depends(require_dashboard_access),
+    db: Session = Depends(get_db),
+):
+    _resolve_team_access(current_user, team_id, db)
+    return get_food_distribution(db, team_id)

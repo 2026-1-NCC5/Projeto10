@@ -1,9 +1,15 @@
+import logging
+
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from models.ai_detection import AIDetection
 from models.team import CollectionEntry, Team
+from models.user import User
 from services.s3_service import build_presigned_url
+
+
+logger = logging.getLogger(__name__)
 
 
 CATEGORIES = ["arroz", "feijao", "outros"]
@@ -126,6 +132,33 @@ def get_all_teams_summary(db: Session) -> dict:
     return {"teams": out}
 
 
+def _build_evidence(db: Session, team_id: str, category: str, limit: int = 10) -> list[dict]:
+    try:
+        rows = (
+            db.query(AIDetection)
+            .filter(
+                AIDetection.team_id == team_id,
+                AIDetection.category == category,
+            )
+            .order_by(AIDetection.detected_at.desc())
+            .limit(limit)
+            .all()
+        )
+        return [
+            {
+                "detection_id": str(r.id),
+                "image_url": build_presigned_url(r.s3_key),
+                "detected_at": r.detected_at,
+                "confidence": float(r.confidence or 0),
+                "item_name": r.item_name,
+            }
+            for r in rows
+        ]
+    except Exception as exc:
+        logger.warning("Falha ao montar evidência (%s/%s): %s", team_id, category, exc)
+        return []
+
+
 def get_team_comparison(db: Session, team_id: str) -> dict:
     manual = _manual_totals_by_category(db, team_id)
     ai = _ai_totals_by_category(db, team_id)
@@ -134,28 +167,6 @@ def get_team_comparison(db: Session, team_id: str) -> dict:
     for c in CATEGORIES:
         m_count = manual[c]["count"]
         a_count = ai[c]["count"]
-        match = m_count == a_count
-        evidence = []
-        if not match:
-            rows = (
-                db.query(AIDetection)
-                .filter(
-                    AIDetection.team_id == team_id,
-                    AIDetection.category == c,
-                )
-                .order_by(AIDetection.detected_at.desc())
-                .limit(10)
-                .all()
-            )
-            evidence = [
-                {
-                    "detection_id": str(r.id),
-                    "image_url": build_presigned_url(r.s3_key),
-                    "detected_at": r.detected_at,
-                    "confidence": r.confidence,
-                }
-                for r in rows
-            ]
         categories.append(
             {
                 "category": c,
@@ -163,9 +174,119 @@ def get_team_comparison(db: Session, team_id: str) -> dict:
                 "manual_weight_g": manual[c]["weight_g"],
                 "ai_count": a_count,
                 "ai_weight_g": ai[c]["weight_g"],
-                "match": match,
-                "evidence": evidence,
+                "match": m_count == a_count,
+                "evidence": _build_evidence(db, team_id, c),
             }
         )
 
     return {"team_id": team_id, "categories": categories}
+
+
+def get_operator_comparison(db: Session, team_id: str) -> dict:
+    manual_rows = (
+        db.query(
+            User.id.label("user_id"),
+            User.name.label("user_name"),
+            func.coalesce(func.sum(CollectionEntry.weight), 0).label("weight"),
+            func.coalesce(func.sum(CollectionEntry.quantity), 0).label("count"),
+        )
+        .join(CollectionEntry, CollectionEntry.user_id == User.id)
+        .filter(CollectionEntry.team_id == team_id)
+        .group_by(User.id, User.name)
+        .all()
+    )
+
+    ai_rows = (
+        db.query(
+            AIDetection.operator_name.label("operator_name"),
+            func.coalesce(func.sum(AIDetection.estimated_weight_g), 0).label("weight"),
+            func.count(AIDetection.id).label("count"),
+        )
+        .filter(AIDetection.team_id == team_id)
+        .group_by(AIDetection.operator_name)
+        .all()
+    )
+
+    by_name: dict[str, dict] = {}
+    for row in manual_rows:
+        key = row.user_name or "Sem nome"
+        entry = by_name.setdefault(
+            key, {"operator_name": key, "manual_weight_g": 0.0, "manual_count": 0, "ai_weight_g": 0.0, "ai_count": 0}
+        )
+        entry["manual_weight_g"] += float(row.weight or 0)
+        entry["manual_count"] += int(row.count or 0)
+
+    for row in ai_rows:
+        key = row.operator_name or "Sem operador"
+        entry = by_name.setdefault(
+            key, {"operator_name": key, "manual_weight_g": 0.0, "manual_count": 0, "ai_weight_g": 0.0, "ai_count": 0}
+        )
+        entry["ai_weight_g"] += float(row.weight or 0)
+        entry["ai_count"] += int(row.count or 0)
+
+    return {"team_id": team_id, "operators": list(by_name.values())}
+
+
+def get_food_distribution(db: Session, team_id: str) -> dict:
+    ai_rows = (
+        db.query(
+            AIDetection.item_name,
+            AIDetection.category,
+            func.count(AIDetection.id).label("count"),
+            func.coalesce(func.sum(AIDetection.estimated_weight_g), 0).label("weight"),
+        )
+        .filter(AIDetection.team_id == team_id)
+        .group_by(AIDetection.item_name, AIDetection.category)
+        .all()
+    )
+
+    manual_rows = (
+        db.query(
+            CollectionEntry.item_name,
+            CollectionEntry.item_type,
+            func.coalesce(func.sum(CollectionEntry.quantity), 0).label("count"),
+            func.coalesce(func.sum(CollectionEntry.weight), 0).label("weight"),
+        )
+        .filter(CollectionEntry.team_id == team_id)
+        .group_by(CollectionEntry.item_name, CollectionEntry.item_type)
+        .all()
+    )
+
+    merged: dict[tuple[str, str], dict] = {}
+
+    for item_name, category, count, weight in ai_rows:
+        key = (item_name.lower().strip(), category)
+        entry = merged.setdefault(
+            key,
+            {
+                "item_name": item_name.lower().strip(),
+                "category": category,
+                "manual_count": 0,
+                "manual_weight_g": 0.0,
+                "ai_count": 0,
+                "ai_weight_g": 0.0,
+            },
+        )
+        entry["ai_count"] += int(count or 0)
+        entry["ai_weight_g"] += float(weight or 0)
+
+    for item_name, item_type, count, weight in manual_rows:
+        normalized = (item_name or item_type).lower().strip()
+        category = _MANUAL_TYPE_TO_CATEGORY.get(item_type, "outros")
+        key = (normalized, category)
+        entry = merged.setdefault(
+            key,
+            {
+                "item_name": normalized,
+                "category": category,
+                "manual_count": 0,
+                "manual_weight_g": 0.0,
+                "ai_count": 0,
+                "ai_weight_g": 0.0,
+            },
+        )
+        entry["manual_count"] += int(count or 0)
+        entry["manual_weight_g"] += float(weight or 0) * 1000
+
+    items = sorted(merged.values(), key=lambda x: (x["category"], x["item_name"]))
+    return {"team_id": team_id, "items": items}

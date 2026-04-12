@@ -35,13 +35,13 @@ export const ChartsGrid = styled(Box)({
 
 export const ChartPanel = styled(Box)({
   padding: 16,
-  minHeight: 260,
+  minHeight: 320,
 });
 
 export const ChartTitle = styled(Typography)({
   fontFamily: "'Manrope', sans-serif",
   fontWeight: 700,
-  fontSize: 14,
+  fontSize: 16,
   color: palette.neutral.onSurface,
   marginBottom: 12,
 });
@@ -49,7 +49,7 @@ export const ChartTitle = styled(Typography)({
 export const SectionHeader = styled(Typography)({
   fontFamily: "'Manrope', sans-serif",
   fontWeight: 700,
-  fontSize: 18,
+  fontSize: 22,
   color: palette.neutral.onSurface,
   marginBottom: 12,
   marginTop: 8,
@@ -118,21 +118,24 @@ export const EvidenceButton = styled(ButtonBase)({
   },
 });
 
-export const SelectorRow = styled(Box)({
-  display: "flex",
+export const TeamContextLabel = styled(Box)({
+  display: "inline-flex",
   alignItems: "center",
-  gap: 12,
-  marginBottom: 20,
-});
-
-export const Select = styled("select")({
-  padding: "10px 14px",
+  gap: 8,
+  padding: "6px 12px",
   borderRadius: 8,
-  backgroundColor: palette.neutral.surfaceContainerLow,
-  color: palette.neutral.onSurface,
-  border: `1px solid ${palette.neutral.outlineVariant}`,
+  backgroundColor: "rgba(87, 222, 160, 0.1)",
+  color: palette.primary.main,
   fontFamily: "'Inter', sans-serif",
   fontSize: 13,
-  outline: "none",
-  minWidth: 220,
+  fontWeight: 600,
+  marginBottom: 16,
+  "& .material-symbols-outlined": { fontSize: 18 },
+});
+
+export const MetricsGrid = styled(Box)({
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+  gap: 16,
+  marginBottom: 24,
 });

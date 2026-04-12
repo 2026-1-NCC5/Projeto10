@@ -194,7 +194,16 @@ def remove_member_from_team(db: Session, team_id: str, user_id: str) -> None:
     if not member:
         raise HTTPException(status_code=404, detail="Membro não encontrado na equipe")
     db.delete(member)
+    db.flush()
+    _enforce_team_constraints(db, team_id)
     db.commit()
+
+
+def _enforce_team_constraints(db: Session, team_id: str) -> None:
+    result = validate_team_invariant(db, team_id)
+    if not result["valid"]:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="; ".join(result["issues"]))
 
 
 def reallocate_member(db: Session, target_team_id: str, user_id: str) -> dict:

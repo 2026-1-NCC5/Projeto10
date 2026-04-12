@@ -107,6 +107,36 @@ export type ComparisonEvidence = {
   imageUrl: string | null;
   detectedAt: string;
   confidence: number;
+  itemName?: string | null;
+};
+
+
+export type OperatorComparison = {
+  operatorName: string;
+  manualWeightG: number;
+  manualCount: number;
+  aiWeightG: number;
+  aiCount: number;
+};
+
+
+export type OperatorComparisonResponse = {
+  teamId: string;
+  operators: OperatorComparison[];
+};
+
+
+export type AIDetection = {
+  id: string;
+  itemName: string;
+  category: string;
+  estimatedWeightG: number | null;
+  confidence: number;
+  detectedAt: string;
+  teamId: string;
+  operatorName: string | null;
+  s3Key: string | null;
+  imageUrl: string | null;
 };
 
 
@@ -124,4 +154,20 @@ export type ComparisonCategory = {
 export type DashboardComparison = {
   teamId: string;
   categories: ComparisonCategory[];
+};
+
+
+export type FoodDistributionItem = {
+  itemName: string;
+  category: string;
+  manualCount: number;
+  manualWeightG: number;
+  aiCount: number;
+  aiWeightG: number;
+};
+
+
+export type FoodDistributionResponse = {
+  teamId: string;
+  items: FoodDistributionItem[];
 };

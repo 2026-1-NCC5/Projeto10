@@ -179,6 +179,7 @@ class ComparisonEvidence(CamelModel):
     image_url: Optional[str] = None
     detected_at: datetime
     confidence: float
+    item_name: Optional[str] = None
 
 
 class ComparisonCategory(CamelModel):
@@ -194,3 +195,30 @@ class ComparisonCategory(CamelModel):
 class DashboardComparisonResponse(CamelModel):
     team_id: str
     categories: list[ComparisonCategory]
+
+
+class OperatorComparison(CamelModel):
+    operator_name: str
+    manual_weight_g: float
+    manual_count: int
+    ai_weight_g: float
+    ai_count: int
+
+
+class OperatorComparisonResponse(CamelModel):
+    team_id: str
+    operators: list[OperatorComparison]
+
+
+class FoodDistributionItem(CamelModel):
+    item_name: str
+    category: str
+    manual_count: int
+    manual_weight_g: float
+    ai_count: int
+    ai_weight_g: float
+
+
+class FoodDistributionResponse(CamelModel):
+    team_id: str
+    items: list[FoodDistributionItem]

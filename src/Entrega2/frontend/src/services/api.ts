@@ -7,6 +7,10 @@ import type {
   DashboardSummary,
   DashboardAllSummary,
   DashboardComparison,
+  OperatorComparisonResponse,
+  FoodDistributionResponse,
+  AIDetection,
+  CollectionEntry,
 } from "../types";
 
 
@@ -255,4 +259,86 @@ export async function getDashboardComparison(
     `/dashboard/comparison?team_id=${encodeURIComponent(teamId)}`,
     { headers: authHeaders(token) }
   );
+}
+
+
+export async function getOperatorComparison(
+  token: string,
+  teamId: string
+): Promise<OperatorComparisonResponse> {
+  return request<OperatorComparisonResponse>(
+    API_URL,
+    `/dashboard/comparison/by-operator?team_id=${encodeURIComponent(teamId)}`,
+    { headers: authHeaders(token) }
+  );
+}
+
+
+export async function getFoodDistribution(
+  token: string,
+  teamId: string
+): Promise<FoodDistributionResponse> {
+  return request<FoodDistributionResponse>(
+    API_URL,
+    `/dashboard/food-distribution?team_id=${encodeURIComponent(teamId)}`,
+    { headers: authHeaders(token) }
+  );
+}
+
+
+export async function getAIDetections(
+  token: string,
+  teamId: string
+): Promise<AIDetection[]> {
+  return request<AIDetection[]>(
+    API_URL,
+    `/ai-detections?team_id=${encodeURIComponent(teamId)}`,
+    { headers: authHeaders(token) }
+  );
+}
+
+
+export async function getMyCollections(token: string): Promise<CollectionEntry[]> {
+  return request<CollectionEntry[]>(API_URL, "/collections/me", {
+    headers: authHeaders(token),
+  });
+}
+
+
+export async function getTeamCollections(
+  token: string,
+  teamId: string
+): Promise<CollectionEntry[]> {
+  return request<CollectionEntry[]>(API_URL, `/collections/team/${teamId}`, {
+    headers: authHeaders(token),
+  });
+}
+
+
+export interface TeamDraftDiff {
+  metaChanged: boolean;
+  name?: string;
+  description?: string;
+  toAdd: string[];
+  toRemove: string[];
+}
+
+
+export async function saveTeamDraft(
+  token: string,
+  teamId: string,
+  diff: TeamDraftDiff
+): Promise<void> {
+  if (diff.metaChanged) {
+    await updateTeam(token, teamId, {
+      name: diff.name,
+      description: diff.description,
+    });
+  }
+  for (const userId of diff.toAdd) {
+    await addTeamMember(token, teamId, userId);
+  }
+  for (const userId of diff.toRemove) {
+    await removeTeamMember(token, teamId, userId);
+  }
 }
