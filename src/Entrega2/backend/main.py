@@ -14,6 +14,8 @@ from api.routes.teams import router as teams_router
 from api.routes.collections import router as collections_router
 from api.routes.ai_detections import router as ai_detections_router
 from api.routes.dashboard import router as dashboard_router
+from api.routes.public_dashboard import router as public_dashboard_router
+from api.routes.ranking import router as ranking_router
 
 
 @asynccontextmanager
@@ -44,3 +46,5 @@ app.include_router(teams_router)
 app.include_router(collections_router)
 app.include_router(ai_detections_router)
 app.include_router(dashboard_router)
+app.include_router(public_dashboard_router)
+app.include_router(ranking_router)

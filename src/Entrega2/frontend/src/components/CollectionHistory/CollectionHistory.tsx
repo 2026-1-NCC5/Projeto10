@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import type { CollectionEntry } from "../../types";
+import { formatKg } from "../../utils/units";
 import GlassPanel from "../GlassPanel/GlassPanel";
 import {
   HistoryRoot,
@@ -85,7 +86,7 @@ function CollectionHistory({
                   {entry.itemName ? ` · ${entry.itemName}` : ""}
                 </div>
                 <div>{entry.quantity}</div>
-                <div>{Number(entry.weight ?? 0).toFixed(2)}</div>
+                <div>{formatKg(entry.weight)}</div>
                 <div>{entry.addedBy}</div>
               </HistoryRow>
             ))

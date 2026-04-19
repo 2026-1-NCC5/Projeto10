@@ -1,10 +1,12 @@
+import { useMemo } from "react";
 import type { ReactElement } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ThemeProvider } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
 import GlobalStyles from "@mui/material/GlobalStyles";
 
-import theme from "./theme/theme";
+import { createAppTheme } from "./theme/theme";
+import { ThemeModeProvider, useThemeMode } from "./theme/ThemeModeContext";
 import { globalStyles } from "./styles/global";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute/ProtectedRoute";
@@ -17,6 +19,8 @@ import HomePage from "./pages/home/Home";
 import DashboardPage from "./pages/dashboard/Dashboard";
 import TeamsPage from "./pages/teams/Teams";
 import AdminPage from "./pages/admin/Admin";
+import PublicDashboardPage from "./pages/publicDashboard/PublicDashboard";
+import RankingPage from "./pages/ranking/Ranking";
 
 
 function RoleRoute({ roles, children }: { roles: string[]; children: ReactElement }) {
@@ -24,7 +28,11 @@ function RoleRoute({ roles, children }: { roles: string[]; children: ReactElemen
   return roles.includes(user?.role ?? "") ? children : <Navigate to="/home" replace />;
 }
 
-function App() {
+
+function ThemedApp() {
+  const { mode } = useThemeMode();
+  const theme = useMemo(() => createAppTheme(mode), [mode]);
+
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
@@ -32,6 +40,7 @@ function App() {
       <BrowserRouter>
         <AuthProvider>
           <Routes>
+            <Route path="/overview" element={<PublicDashboardPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
             <Route
@@ -45,6 +54,7 @@ function App() {
             <Route element={<ProtectedRoute />}>
               <Route element={<AppLayout />}>
                 <Route path="/home" element={<HomePage />} />
+                <Route path="/ranking" element={<RankingPage />} />
                 <Route path="/teams" element={<TeamsPage />} />
                 <Route
                   path="/dashboard"
@@ -69,6 +79,15 @@ function App() {
         </AuthProvider>
       </BrowserRouter>
     </ThemeProvider>
+  );
+}
+
+
+function App() {
+  return (
+    <ThemeModeProvider>
+      <ThemedApp />
+    </ThemeModeProvider>
   );
 }
 

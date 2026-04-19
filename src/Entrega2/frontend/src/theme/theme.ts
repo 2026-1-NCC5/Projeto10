@@ -1,6 +1,64 @@
 import { createTheme } from "@mui/material/styles";
 
-import { palette } from "./palette";
+import { palette, getPalette } from "./palette";
+
+
+export function createAppTheme(mode: "dark" | "light" = "dark") {
+  const p = getPalette(mode);
+  return createTheme({
+    palette: {
+      mode,
+      primary: {
+        main: p.primary.main,
+        dark: p.primary.container,
+        contrastText: p.primary.onPrimary,
+      },
+      secondary: {
+        main: p.secondary.main,
+        dark: p.secondary.container,
+        contrastText: p.secondary.onSecondary,
+      },
+      error: {
+        main: p.error.main,
+        dark: p.error.container,
+        contrastText: p.error.onError,
+      },
+      background: {
+        default: p.neutral.background,
+        paper: p.neutral.surfaceContainer,
+      },
+      text: {
+        primary: p.neutral.onSurface,
+        secondary: p.neutral.onSurfaceVariant,
+      },
+    },
+    typography: {
+      fontFamily: "'Inter', sans-serif",
+      h1: { fontFamily: "'Manrope', sans-serif", fontWeight: 800, letterSpacing: "-0.02em" },
+      h2: { fontFamily: "'Manrope', sans-serif", fontWeight: 800, letterSpacing: "-0.02em" },
+      h3: { fontFamily: "'Manrope', sans-serif", fontWeight: 700 },
+      h4: { fontFamily: "'Manrope', sans-serif", fontWeight: 700 },
+      h5: { fontFamily: "'Manrope', sans-serif", fontWeight: 700 },
+      h6: { fontFamily: "'Manrope', sans-serif", fontWeight: 700 },
+      button: { fontFamily: "'Manrope', sans-serif", fontWeight: 700, textTransform: "none" },
+      body1: { fontFamily: "'Inter', sans-serif" },
+      body2: { fontFamily: "'Inter', sans-serif" },
+      caption: { fontFamily: "'Inter', sans-serif" },
+      overline: { fontFamily: "'Inter', sans-serif", fontWeight: 600, letterSpacing: "0.1em" },
+    },
+    shape: { borderRadius: 8 },
+    components: {
+      MuiCssBaseline: {
+        styleOverrides: {
+          body: {
+            backgroundColor: p.neutral.background,
+            color: p.neutral.onSurface,
+          },
+        },
+      },
+    },
+  });
+}
 
 
 const theme = createTheme({

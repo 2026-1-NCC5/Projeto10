@@ -229,6 +229,81 @@ export async function submitBatch(
 }
 
 
+export type PublicOverview = {
+  totalCollectedG: number;
+  collectorsCount: number;
+  categories: { category: string; totalG: number; count: number }[];
+  items: { itemName: string; category: string; totalG: number; count: number }[];
+  timeseries: { date: string; totalG: number; count: number }[];
+};
+
+
+export type RankingItem = {
+  rank: number;
+  teamId: string;
+  teamName: string;
+  totalG: number;
+  detectionCount: number;
+};
+
+
+export type RankingResponse = {
+  total: number;
+  items: RankingItem[];
+};
+
+
+function snakeToCamel<T = unknown>(value: unknown): T {
+  if (Array.isArray(value)) return value.map((v) => snakeToCamel(v)) as unknown as T;
+  if (value !== null && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      const camel = k.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+      out[camel] = snakeToCamel(v);
+    }
+    return out as T;
+  }
+  return value as T;
+}
+
+
+export async function getPublicOverview(params: {
+  from?: string | null;
+  to?: string | null;
+}): Promise<PublicOverview> {
+  const qs = new URLSearchParams();
+  if (params.from) qs.set("from", params.from);
+  if (params.to) qs.set("to", params.to);
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  const raw = await request<Record<string, unknown>>(
+    API_URL,
+    `/public/dashboard/overview${suffix}`
+  );
+  return snakeToCamel<PublicOverview>(raw);
+}
+
+
+export async function getPublicFilters(): Promise<{ minDate: string | null; maxDate: string | null }> {
+  const raw = await request<Record<string, unknown>>(API_URL, "/public/dashboard/filters");
+  return snakeToCamel<{ minDate: string | null; maxDate: string | null }>(raw);
+}
+
+
+export async function getRanking(
+  token: string,
+  limit = 15,
+  offset = 0
+): Promise<RankingResponse> {
+  const qs = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+  const raw = await request<Record<string, unknown>>(
+    API_URL,
+    `/ranking/teams?${qs.toString()}`,
+    { headers: authHeaders(token) }
+  );
+  return snakeToCamel<RankingResponse>(raw);
+}
+
+
 export async function getDashboardSummary(
   token: string,
   teamId: string

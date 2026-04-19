@@ -1,3 +1,4 @@
+import unicodedata
 import uuid
 from datetime import datetime
 from typing import Optional
@@ -10,6 +11,16 @@ from sqlalchemy.orm import declarative_base, Session
 from config import DATABASE_URL
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+
+
+def _normalize(value: Optional[str]) -> Optional[str]:
+    if value is None:
+        return None
+    stripped = value.strip()
+    if not stripped:
+        return None
+    nfkd = unicodedata.normalize("NFKD", stripped)
+    return "".join(ch for ch in nfkd if not unicodedata.combining(ch)).lower()
 
 
 Base = declarative_base()
@@ -44,7 +55,7 @@ def write_detection(
     db: Session = _SessionLocal()
     try:
         detection = AIDetection(
-            item_name=item_name,
+            item_name=_normalize(item_name) or "desconhecido",
             category=category,
             confidence=confidence,
             estimated_weight_g=estimated_weight_g,

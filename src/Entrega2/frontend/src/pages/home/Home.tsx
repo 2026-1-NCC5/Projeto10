@@ -19,6 +19,7 @@ import {
   ActionsRow,
   SubmitErrorText,
 } from "./styles";
+import { normalizeItemName } from "../../utils/text";
 
 
 type BlockForm = { quantity: string; weight: string; itemName?: string };
@@ -99,11 +100,12 @@ function HomePage() {
   }
 
   function handleAddOutros() {
+    const normalized = normalizeItemName(outrosForm.itemName) ?? undefined;
     setBatchItems((prev) => [
       ...prev,
       {
         itemType: "Outros",
-        itemName: outrosForm.itemName,
+        itemName: normalized,
         quantity: Number(outrosForm.quantity),
         weight: Number(outrosForm.weight),
       },

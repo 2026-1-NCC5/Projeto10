@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from models.team import Batch, CollectionEntry
 from models.user import User
+from utils.text import normalize_item_name
 
 
 def get_user_collections(db: Session, user_id: UUID) -> list[dict]:
@@ -66,27 +67,45 @@ def get_team_summary(db: Session, team_id: str) -> dict:
     }
 
 
-def submit_batch(db: Session, user_id: UUID, team_id: str | None, items: list[dict]) -> str:
+def submit_batch(
+    db: Session,
+    user_id: UUID,
+    team_id: str | None,
+    items: list[dict],
+) -> str:
+    normalized_items: list[dict] = []
     for item in items:
-        if item["item_type"] == "Outros" and not item.get("item_name"):
+        normalized_name = normalize_item_name(item.get("item_name"))
+        if item["item_type"] == "Outros" and not normalized_name:
             raise HTTPException(
                 status_code=422,
                 detail="item_name é obrigatório para o tipo Outros",
             )
+        normalized_items.append(
+            {
+                "item_type": item["item_type"],
+                "item_name": normalized_name,
+                "quantity": item["quantity"],
+                "weight_g": float(item["weight"]) * 1000,
+            }
+        )
 
-    batch = Batch(user_id=user_id, team_id=team_id)
+    batch = Batch(
+        user_id=user_id,
+        team_id=team_id,
+    )
     db.add(batch)
     db.flush()
 
-    for item in items:
+    for entry_data in normalized_items:
         entry = CollectionEntry(
             batch_id=batch.id,
             user_id=user_id,
             team_id=team_id,
-            item_type=item["item_type"],
-            item_name=item.get("item_name"),
-            quantity=item["quantity"],
-            weight=item["weight"],
+            item_type=entry_data["item_type"],
+            item_name=entry_data["item_name"],
+            quantity=entry_data["quantity"],
+            weight=entry_data["weight_g"],
         )
         db.add(entry)
 

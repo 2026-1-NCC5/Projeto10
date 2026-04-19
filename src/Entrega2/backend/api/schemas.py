@@ -222,3 +222,16 @@ class FoodDistributionItem(CamelModel):
 class FoodDistributionResponse(CamelModel):
     team_id: str
     items: list[FoodDistributionItem]
+
+
+class RankingItem(CamelModel):
+    rank: int
+    team_id: str
+    team_name: str
+    total_g: float
+    detection_count: int
+
+
+class RankingResponse(CamelModel):
+    total: int
+    items: list[RankingItem]

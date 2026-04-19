@@ -56,5 +56,10 @@ def submit_collection_batch(
     membership = get_team_member(db, current_user.id)
     team_id = str(membership.team_id) if membership else None
     items = [item.model_dump() for item in body.items]
-    batch_id = submit_batch(db, current_user.id, team_id, items)
+    batch_id = submit_batch(
+        db,
+        current_user.id,
+        team_id,
+        items,
+    )
     return {"batch_id": batch_id}

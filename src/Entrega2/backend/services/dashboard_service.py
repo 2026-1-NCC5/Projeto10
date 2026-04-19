@@ -7,6 +7,7 @@ from models.ai_detection import AIDetection
 from models.team import CollectionEntry, Team
 from models.user import User
 from services.s3_service import build_presigned_url
+from utils.text import normalize_item_name
 
 
 logger = logging.getLogger(__name__)
@@ -255,11 +256,12 @@ def get_food_distribution(db: Session, team_id: str) -> dict:
     merged: dict[tuple[str, str], dict] = {}
 
     for item_name, category, count, weight in ai_rows:
-        key = (item_name.lower().strip(), category)
+        normalized = normalize_item_name(item_name) or "desconhecido"
+        key = (normalized, category)
         entry = merged.setdefault(
             key,
             {
-                "item_name": item_name.lower().strip(),
+                "item_name": normalized,
                 "category": category,
                 "manual_count": 0,
                 "manual_weight_g": 0.0,
@@ -271,7 +273,7 @@ def get_food_distribution(db: Session, team_id: str) -> dict:
         entry["ai_weight_g"] += float(weight or 0)
 
     for item_name, item_type, count, weight in manual_rows:
-        normalized = (item_name or item_type).lower().strip()
+        normalized = normalize_item_name(item_name) or normalize_item_name(item_type) or "outros"
         category = _MANUAL_TYPE_TO_CATEGORY.get(item_type, "outros")
         key = (normalized, category)
         entry = merged.setdefault(
@@ -286,7 +288,7 @@ def get_food_distribution(db: Session, team_id: str) -> dict:
             },
         )
         entry["manual_count"] += int(count or 0)
-        entry["manual_weight_g"] += float(weight or 0) * 1000
+        entry["manual_weight_g"] += float(weight or 0)
 
     items = sorted(merged.values(), key=lambda x: (x["category"], x["item_name"]))
     return {"team_id": team_id, "items": items}

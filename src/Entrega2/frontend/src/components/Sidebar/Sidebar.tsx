@@ -31,6 +31,8 @@ function getNavItems(role: string | null): NavItem[] {
   if (role === "coordinator" || role === "admin") {
     items.push({ label: "Dashboard", icon: "bar_chart", path: "/dashboard" });
   }
+  items.push({ label: "Panorama", icon: "public", path: "/overview" });
+  items.push({ label: "Ranking", icon: "emoji_events", path: "/ranking" });
   items.push({ label: "Equipes", icon: "groups", path: "/teams" });
   if (role === "admin") {
     items.push({ label: "Admin", icon: "admin_panel_settings", path: "/admin" });

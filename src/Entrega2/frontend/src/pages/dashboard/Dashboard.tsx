@@ -32,6 +32,7 @@ import ErrorBoundary from "../../components/ErrorBoundary/ErrorBoundary";
 import MetricCard from "../../components/MetricCard/MetricCard";
 import TeamTabs from "../../components/TeamTabs/TeamTabs";
 import { palette } from "../../theme/palette";
+import { formatKg, gramsToKg } from "../../utils/units";
 import {
   DashboardRoot,
   PageTitle,
@@ -122,7 +123,7 @@ function DashboardPage() {
     if (!summary) return [];
     return summary.countsByCategory.map((c) => ({
       name: c.category,
-      weight: Number(safeNumber(c.totalWeightG).toFixed(0)),
+      weight: Number(gramsToKg(c.totalWeightG).toFixed(2)),
       count: c.count,
     }));
   }, [summary]);
@@ -138,7 +139,7 @@ function DashboardPage() {
     if (!summary) return [];
     return summary.timeseries.map((p) => ({
       date: p.date,
-      weight: Number(safeNumber(p.totalWeightG).toFixed(0)),
+      weight: Number(gramsToKg(p.totalWeightG).toFixed(2)),
     }));
   }, [summary]);
 
@@ -147,7 +148,7 @@ function DashboardPage() {
     return allSummary.teams.map((t) => {
       const row: Record<string, string | number> = { name: t.teamName };
       t.byCategory.forEach((c) => {
-        row[c.category] = Number(safeNumber(c.totalWeightG).toFixed(0));
+        row[c.category] = Number(gramsToKg(c.totalWeightG).toFixed(2));
       });
       return row;
     });
@@ -157,8 +158,8 @@ function DashboardPage() {
     if (!operatorComparison) return [];
     return operatorComparison.operators.map((o) => ({
       name: o.operatorName,
-      manual: Number(safeNumber(o.manualWeightG * 1000).toFixed(0)),
-      ai: Number(safeNumber(o.aiWeightG).toFixed(0)),
+      manual: Number(gramsToKg(o.manualWeightG).toFixed(2)),
+      ai: Number(gramsToKg(o.aiWeightG).toFixed(2)),
     }));
   }, [operatorComparison]);
 
@@ -240,27 +241,27 @@ function DashboardPage() {
       <ErrorBoundary>
         <MetricsGrid>
           <MetricCard
-            label="Peso total (g)"
+            label="Peso total (kg)"
             icon="scale"
-            value={totalWeightG.toFixed(0)}
+            value={formatKg(totalWeightG)}
             hint="Acumulado pela IA"
           />
           <MetricCard
             label="Arroz"
             icon="rice_bowl"
-            value={`${riceG.toFixed(0)} g`}
+            value={`${formatKg(riceG)} kg`}
             hint={`${(safeNumber(summary?.countsByCategory.find((c) => c.category === "arroz")?.count)).toFixed(0)} itens`}
           />
           <MetricCard
             label="Feijão"
             icon="grain"
-            value={`${beansG.toFixed(0)} g`}
+            value={`${formatKg(beansG)} kg`}
             hint={`${(safeNumber(summary?.countsByCategory.find((c) => c.category === "feijao")?.count)).toFixed(0)} itens`}
           />
           <MetricCard
             label="Outros"
             icon="category"
-            value={`${othersG.toFixed(0)} g`}
+            value={`${formatKg(othersG)} kg`}
             hint={`${(safeNumber(summary?.countsByCategory.find((c) => c.category === "outros")?.count)).toFixed(0)} itens`}
           />
         </MetricsGrid>
@@ -268,7 +269,7 @@ function DashboardPage() {
         <ChartsGrid>
           <GlassPanel>
             <ChartPanel>
-              <ChartTitle>Peso total por categoria (g)</ChartTitle>
+              <ChartTitle>Peso total por categoria (kg)</ChartTitle>
               <ResponsiveContainer width="100%" height={280}>
                 <BarChart data={categoryBars}>
                   <CartesianGrid strokeDasharray="3 3" stroke={palette.neutral.outlineVariant} />
@@ -306,7 +307,7 @@ function DashboardPage() {
 
           <GlassPanel>
             <ChartPanel>
-              <ChartTitle>Peso total ao longo do tempo (g)</ChartTitle>
+              <ChartTitle>Peso total ao longo do tempo (kg)</ChartTitle>
               <ResponsiveContainer width="100%" height={280}>
                 <LineChart data={lineData}>
                   <CartesianGrid strokeDasharray="3 3" stroke={palette.neutral.outlineVariant} />
@@ -326,7 +327,7 @@ function DashboardPage() {
 
           <GlassPanel>
             <ChartPanel>
-              <ChartTitle>Equipe × IA por operador (g)</ChartTitle>
+              <ChartTitle>Equipe × IA por operador (kg)</ChartTitle>
               <ResponsiveContainer width="100%" height={280}>
                 <BarChart data={operatorChartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke={palette.neutral.outlineVariant} />
@@ -346,7 +347,7 @@ function DashboardPage() {
         {isAdmin && (
           <GlassPanel sx={{ marginBottom: 3 }}>
             <ChartPanel>
-              <ChartTitle>Comparação entre equipes (g por categoria)</ChartTitle>
+              <ChartTitle>Comparação entre equipes (kg por categoria)</ChartTitle>
               <ResponsiveContainer width="100%" height={280}>
                 <BarChart data={allTeamsData}>
                   <CartesianGrid strokeDasharray="3 3" stroke={palette.neutral.outlineVariant} />
@@ -369,9 +370,9 @@ function DashboardPage() {
             <ComparisonHeaderRow>
               <div>Categoria</div>
               <div>Equipe (qtd)</div>
-              <div>Equipe (peso)</div>
+              <div>Equipe (kg)</div>
               <div>IA (qtd)</div>
-              <div>IA (peso g)</div>
+              <div>IA (kg)</div>
               <div>Status</div>
               <div>Evidência</div>
             </ComparisonHeaderRow>
@@ -399,9 +400,9 @@ function DashboardPage() {
                     {row.label}
                   </div>
                   <div>{safeNumber(row.manualCount)}</div>
-                  <div>{safeNumber(row.manualWeightG).toFixed(1)}</div>
+                  <div>{formatKg(row.manualWeightG)}</div>
                   <div>{safeNumber(row.aiCount)}</div>
-                  <div>{safeNumber(row.aiWeightG).toFixed(0)}</div>
+                  <div>{formatKg(row.aiWeightG)}</div>
                   <div>
                     <StatusPill ok={row.match}>
                       {row.match ? "Match" : "Divergência"}
