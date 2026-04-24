@@ -1,6 +1,10 @@
 # Liderancas Empaticas (LE) - Contagem Inteligente de Alimentos
 
 <p align="center">
+  <strong>Projeto 10 &mdash; G2JF</strong>
+</p>
+
+<p align="center">
 <strong>Classificacao e contagem automatizada de doacoes com Visao Computacional</strong>
 </p>
 
@@ -20,7 +24,7 @@
 
 ---
 
-## Integrantes
+## Integrantes — Projeto 10 (G2JF)
 
 - Felipe Vallim Soares — RA: 24026060
 - [Guilhermy Mariano Lisboa Garcia](https://www.linkedin.com/in/guilhermy-lisboa-garcia-385656223/) — RA: 23025371
