@@ -79,7 +79,7 @@ function Sidebar() {
           <span className="material-symbols-outlined">volunteer_activism</span>
         </BrandIconBox>
         <div>
-          <BrandTitle>Empathic Leaders</BrandTitle>
+          <BrandTitle>Lideranças Empáticas G2JF</BrandTitle>
           <BrandSubtitle>Coleta de Alimentos</BrandSubtitle>
         </div>
       </BrandSection>

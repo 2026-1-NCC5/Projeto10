@@ -63,7 +63,7 @@ export const ComparisonTable = styled(Box)({
 
 export const ComparisonHeaderRow = styled(Box)({
   display: "grid",
-  gridTemplateColumns: "1.3fr 1fr 1fr 1fr 1fr 1fr 140px",
+  gridTemplateColumns: "1.3fr 1fr 1fr 1fr 1fr 1.2fr 1fr 120px",
   gap: 8,
   padding: "10px 12px",
   fontFamily: "'Inter', sans-serif",
@@ -78,7 +78,7 @@ export const ComparisonHeaderRow = styled(Box)({
 export const ComparisonRow = styled(Box)<{ mismatch?: boolean }>(
   ({ mismatch }) => ({
     display: "grid",
-    gridTemplateColumns: "1.3fr 1fr 1fr 1fr 1fr 1fr 140px",
+    gridTemplateColumns: "1.3fr 1fr 1fr 1fr 1fr 1.2fr 1fr 120px",
     gap: 8,
     padding: "14px 12px",
     alignItems: "center",

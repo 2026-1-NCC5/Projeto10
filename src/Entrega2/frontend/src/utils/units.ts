@@ -17,3 +17,10 @@ export function formatKg(
 export function formatInt(value: number | null | undefined): string {
   return Number(value ?? 0).toLocaleString("pt-BR", { maximumFractionDigits: 0 })
 }
+
+
+export function formatCurrencyBrl(value: number | null | undefined): string {
+  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
+    Number(value ?? 0)
+  )
+}

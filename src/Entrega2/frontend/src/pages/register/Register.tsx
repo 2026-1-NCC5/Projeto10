@@ -75,7 +75,7 @@ function RegisterPage() {
       <Content>
         <BrandingHeader
           icon="restaurant"
-          title="Lideranças Empáticas"
+          title="Lideranças Empáticas G2JF"
           subtitle="Sistema de Gestão e Contagem de Alimentos"
         />
 

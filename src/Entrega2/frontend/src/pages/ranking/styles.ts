@@ -33,7 +33,8 @@ export const ContentGrid = styled(Box)({
   gridTemplateColumns: "1fr",
   gap: 32,
   "@media (min-width: 960px)": {
-    gridTemplateColumns: "1.2fr 1fr",
+    gridTemplateColumns: "1.1fr 1fr",
+    alignItems: "stretch",
   },
 })
 
@@ -44,6 +45,10 @@ export const PodiumWrapper = styled(Box)({
   gap: 16,
   padding: "24px 8px",
   minHeight: 320,
+  "@media (min-width: 960px)": {
+    alignSelf: "center",
+    padding: "40px 8px",
+  },
 })
 
 export const PodiumCard = styled(Box)<{ place: 1 | 2 | 3 }>(({ place }) => {
@@ -116,6 +121,7 @@ export const ListSection = styled(Box)({
   display: "flex",
   flexDirection: "column",
   gap: 12,
+  minHeight: 400,
 })
 
 export const ListHeader = styled(Box)({

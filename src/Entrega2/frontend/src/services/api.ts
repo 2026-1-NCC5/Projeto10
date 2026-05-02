@@ -231,8 +231,10 @@ export async function submitBatch(
 
 export type PublicOverview = {
   totalCollectedG: number;
+  totalCollectedBrl: number;
+  avgPricePerKg: number;
   collectorsCount: number;
-  categories: { category: string; totalG: number; count: number }[];
+  categories: { category: string; totalG: number; totalBrl: number; count: number }[];
   items: { itemName: string; category: string; totalG: number; count: number }[];
   timeseries: { date: string; totalG: number; count: number }[];
 };

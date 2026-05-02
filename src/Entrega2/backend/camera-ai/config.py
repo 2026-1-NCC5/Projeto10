@@ -47,3 +47,17 @@ CATEGORY_WEIGHTS_G: dict[str, float] = {
     "cafe": 500.0,
     "macarrao": 500.0,
 }
+
+CATEGORY_PRICES_BRL_PER_KG: dict[str, float] = {
+    "arroz": 5.50,
+    "feijao": 7.50,
+    "acucar": 4.50,
+    "cafe": 70.00,
+    "macarrao": 8.00,
+}
+
+MAX_DISAPPEARED_FRAMES = int(os.environ.get("MAX_DISAPPEARED_FRAMES", "5"))
+
+VIRTUAL_LINE_Y_RATIO = float(os.environ.get("VIRTUAL_LINE_Y_RATIO", "0.5"))
+
+LINE_COUNT_DIRECTION = os.environ.get("LINE_COUNT_DIRECTION", "down")

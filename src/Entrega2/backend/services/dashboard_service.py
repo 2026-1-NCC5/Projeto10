@@ -28,16 +28,18 @@ def _ai_totals_by_category(db: Session, team_id: str) -> dict[str, dict]:
             AIDetection.category,
             func.count(AIDetection.id).label("count"),
             func.coalesce(func.sum(AIDetection.estimated_weight_g), 0).label("weight"),
+            func.coalesce(func.sum(AIDetection.estimated_price_brl), 0).label("price"),
         )
         .filter(AIDetection.team_id == team_id)
         .group_by(AIDetection.category)
         .all()
     )
-    totals = {c: {"count": 0, "weight_g": 0.0} for c in CATEGORIES}
-    for category, count, weight in rows:
+    totals = {c: {"count": 0, "weight_g": 0.0, "price_brl": 0.0} for c in CATEGORIES}
+    for category, count, weight, price in rows:
         key = category if category in totals else "outros"
         totals[key]["count"] += int(count or 0)
         totals[key]["weight_g"] += float(weight or 0)
+        totals[key]["price_brl"] += float(price or 0)
     return totals
 
 
@@ -60,6 +62,10 @@ def _manual_totals_by_category(db: Session, team_id: str) -> dict[str, dict]:
     return totals
 
 
+def _avg_price_per_kg(price_brl: float, weight_g: float) -> float:
+    return round(price_brl / (weight_g / 1000.0), 2) if weight_g > 0 else 0.0
+
+
 def get_team_summary(db: Session, team_id: str) -> dict:
     team = db.query(Team).filter(Team.id == team_id).first()
     ai_totals = _ai_totals_by_category(db, team_id)
@@ -69,16 +75,20 @@ def get_team_summary(db: Session, team_id: str) -> dict:
             "category": c,
             "total_weight_g": ai_totals[c]["weight_g"],
             "count": ai_totals[c]["count"],
+            "total_price_brl": ai_totals[c]["price_brl"],
+            "avg_price_per_kg": _avg_price_per_kg(ai_totals[c]["price_brl"], ai_totals[c]["weight_g"]),
         }
         for c in CATEGORIES
     ]
     total_g = sum(ai_totals[c]["weight_g"] for c in CATEGORIES)
+    total_brl = sum(ai_totals[c]["price_brl"] for c in CATEGORIES)
 
     rows = (
         db.query(
             func.date(AIDetection.detected_at).label("d"),
             func.count(AIDetection.id).label("c"),
             func.coalesce(func.sum(AIDetection.estimated_weight_g), 0).label("w"),
+            func.coalesce(func.sum(AIDetection.estimated_price_brl), 0).label("p"),
         )
         .filter(AIDetection.team_id == team_id)
         .group_by(func.date(AIDetection.detected_at))
@@ -90,8 +100,9 @@ def get_team_summary(db: Session, team_id: str) -> dict:
             "date": str(d),
             "count": int(c or 0),
             "total_weight_g": float(w or 0),
+            "total_price_brl": float(p or 0),
         }
-        for d, c, w in rows
+        for d, c, w, p in rows
     ]
 
     return {
@@ -102,6 +113,10 @@ def get_team_summary(db: Session, team_id: str) -> dict:
             "beans_g": ai_totals["feijao"]["weight_g"],
             "others_g": ai_totals["outros"]["weight_g"],
             "total_g": total_g,
+            "rice_brl": ai_totals["arroz"]["price_brl"],
+            "beans_brl": ai_totals["feijao"]["price_brl"],
+            "others_brl": ai_totals["outros"]["price_brl"],
+            "total_brl": total_brl,
         },
         "counts_by_category": counts_by_category,
         "timeseries": timeseries,
@@ -118,6 +133,8 @@ def get_all_teams_summary(db: Session) -> dict:
                 "category": c,
                 "total_weight_g": ai_totals[c]["weight_g"],
                 "count": ai_totals[c]["count"],
+                "total_price_brl": ai_totals[c]["price_brl"],
+                "avg_price_per_kg": _avg_price_per_kg(ai_totals[c]["price_brl"], ai_totals[c]["weight_g"]),
             }
             for c in CATEGORIES
         ]
@@ -175,6 +192,7 @@ def get_team_comparison(db: Session, team_id: str) -> dict:
                 "manual_weight_g": manual[c]["weight_g"],
                 "ai_count": a_count,
                 "ai_weight_g": ai[c]["weight_g"],
+                "ai_price_brl": ai[c]["price_brl"],
                 "match": m_count == a_count,
                 "evidence": _build_evidence(db, team_id, c),
             }
@@ -201,6 +219,7 @@ def get_operator_comparison(db: Session, team_id: str) -> dict:
         db.query(
             AIDetection.operator_name.label("operator_name"),
             func.coalesce(func.sum(AIDetection.estimated_weight_g), 0).label("weight"),
+            func.coalesce(func.sum(AIDetection.estimated_price_brl), 0).label("price"),
             func.count(AIDetection.id).label("count"),
         )
         .filter(AIDetection.team_id == team_id)
@@ -212,7 +231,7 @@ def get_operator_comparison(db: Session, team_id: str) -> dict:
     for row in manual_rows:
         key = row.user_name or "Sem nome"
         entry = by_name.setdefault(
-            key, {"operator_name": key, "manual_weight_g": 0.0, "manual_count": 0, "ai_weight_g": 0.0, "ai_count": 0}
+            key, {"operator_name": key, "manual_weight_g": 0.0, "manual_count": 0, "ai_weight_g": 0.0, "ai_count": 0, "ai_price_brl": 0.0}
         )
         entry["manual_weight_g"] += float(row.weight or 0)
         entry["manual_count"] += int(row.count or 0)
@@ -220,10 +239,11 @@ def get_operator_comparison(db: Session, team_id: str) -> dict:
     for row in ai_rows:
         key = row.operator_name or "Sem operador"
         entry = by_name.setdefault(
-            key, {"operator_name": key, "manual_weight_g": 0.0, "manual_count": 0, "ai_weight_g": 0.0, "ai_count": 0}
+            key, {"operator_name": key, "manual_weight_g": 0.0, "manual_count": 0, "ai_weight_g": 0.0, "ai_count": 0, "ai_price_brl": 0.0}
         )
         entry["ai_weight_g"] += float(row.weight or 0)
         entry["ai_count"] += int(row.count or 0)
+        entry["ai_price_brl"] += float(row.price or 0)
 
     return {"team_id": team_id, "operators": list(by_name.values())}
 
@@ -235,6 +255,7 @@ def get_food_distribution(db: Session, team_id: str) -> dict:
             AIDetection.category,
             func.count(AIDetection.id).label("count"),
             func.coalesce(func.sum(AIDetection.estimated_weight_g), 0).label("weight"),
+            func.coalesce(func.sum(AIDetection.estimated_price_brl), 0).label("price"),
         )
         .filter(AIDetection.team_id == team_id)
         .group_by(AIDetection.item_name, AIDetection.category)
@@ -255,7 +276,7 @@ def get_food_distribution(db: Session, team_id: str) -> dict:
 
     merged: dict[tuple[str, str], dict] = {}
 
-    for item_name, category, count, weight in ai_rows:
+    for item_name, category, count, weight, price in ai_rows:
         normalized = normalize_item_name(item_name) or "desconhecido"
         key = (normalized, category)
         entry = merged.setdefault(
@@ -267,10 +288,12 @@ def get_food_distribution(db: Session, team_id: str) -> dict:
                 "manual_weight_g": 0.0,
                 "ai_count": 0,
                 "ai_weight_g": 0.0,
+                "ai_price_brl": 0.0,
             },
         )
         entry["ai_count"] += int(count or 0)
         entry["ai_weight_g"] += float(weight or 0)
+        entry["ai_price_brl"] += float(price or 0)
 
     for item_name, item_type, count, weight in manual_rows:
         normalized = normalize_item_name(item_name) or normalize_item_name(item_type) or "outros"
@@ -285,6 +308,7 @@ def get_food_distribution(db: Session, team_id: str) -> dict:
                 "manual_weight_g": 0.0,
                 "ai_count": 0,
                 "ai_weight_g": 0.0,
+                "ai_price_brl": 0.0,
             },
         )
         entry["manual_count"] += int(count or 0)

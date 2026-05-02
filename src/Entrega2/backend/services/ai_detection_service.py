@@ -33,6 +33,7 @@ def _row_to_dict(row: AIDetection) -> dict:
         "item_name": row.item_name,
         "category": row.category,
         "estimated_weight_g": float(row.estimated_weight_g) if row.estimated_weight_g is not None else None,
+        "estimated_price_brl": float(row.estimated_price_brl) if row.estimated_price_brl is not None else None,
         "confidence": row.confidence,
         "detected_at": row.detected_at,
         "team_id": str(row.team_id),

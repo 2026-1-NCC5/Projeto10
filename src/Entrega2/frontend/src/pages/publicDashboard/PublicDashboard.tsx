@@ -20,7 +20,7 @@ import * as api from "../../services/api"
 import type { PublicOverview } from "../../services/api"
 import { useAuth } from "../../contexts/AuthContext"
 import { useThemeMode } from "../../theme/ThemeModeContext"
-import { formatInt, formatKg, gramsToKg } from "../../utils/units"
+import { formatCurrencyBrl, formatInt, formatKg, gramsToKg } from "../../utils/units"
 import BackgroundGlow from "../../components/BackgroundGlow/BackgroundGlow"
 import Sidebar from "../../components/Sidebar/Sidebar"
 import { SIDEBAR_WIDTH } from "../../components/Sidebar/styles"
@@ -143,7 +143,7 @@ function PublicDashboardPage() {
           <Brand>
             <BrandBadge>LE</BrandBadge>
             <BrandText>
-              <BrandTitle>Lideranças Empáticas</BrandTitle>
+              <BrandTitle>Lideranças Empáticas G2JF</BrandTitle>
               <BrandSubtitle>Panorama público de arrecadações</BrandSubtitle>
             </BrandText>
           </Brand>
@@ -197,6 +197,16 @@ function PublicDashboardPage() {
                   ? `${formatKg(data.totalCollectedG / data.collectorsCount)} kg`
                   : "—"}
               </MetricHint>
+            </MetricCard>
+            <MetricCard>
+              <MetricLabel>Valor arrecadado</MetricLabel>
+              <MetricValue>{formatCurrencyBrl(data.totalCollectedBrl)}</MetricValue>
+              <MetricHint>Estimado com preços de mercado</MetricHint>
+            </MetricCard>
+            <MetricCard>
+              <MetricLabel>Preço médio (R$/kg)</MetricLabel>
+              <MetricValue>{formatCurrencyBrl(data.avgPricePerKg)}</MetricValue>
+              <MetricHint>Média ponderada por categoria</MetricHint>
             </MetricCard>
           </MetricsGrid>
 

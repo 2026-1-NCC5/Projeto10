@@ -32,7 +32,7 @@ import ErrorBoundary from "../../components/ErrorBoundary/ErrorBoundary";
 import MetricCard from "../../components/MetricCard/MetricCard";
 import TeamTabs from "../../components/TeamTabs/TeamTabs";
 import { palette } from "../../theme/palette";
-import { formatKg, gramsToKg } from "../../utils/units";
+import { formatCurrencyBrl, formatKg, gramsToKg } from "../../utils/units";
 import {
   DashboardRoot,
   PageTitle,
@@ -190,6 +190,7 @@ function DashboardPage() {
         manualWeightG: item.manualWeightG,
         aiCount: item.aiCount,
         aiWeightG: item.aiWeightG,
+        aiPriceBrl: item.aiPriceBrl ?? 0,
         match: item.manualCount === item.aiCount,
         evidence: evidenceByCategory.get(item.category) ?? [],
         isSubItem: true,
@@ -203,6 +204,7 @@ function DashboardPage() {
       manualWeightG: c.manualWeightG,
       aiCount: c.aiCount,
       aiWeightG: c.aiWeightG,
+      aiPriceBrl: c.aiPriceBrl ?? 0,
       match: c.match,
       evidence: c.evidence,
       isSubItem: false,
@@ -213,6 +215,25 @@ function DashboardPage() {
   const riceG = safeNumber(summary?.totals.rice_g);
   const beansG = safeNumber(summary?.totals.beans_g);
   const othersG = safeNumber(summary?.totals.others_g);
+  const totalBrl = safeNumber(summary?.totals.total_brl);
+
+  const revenueByCategory = useMemo(() => {
+    if (!summary) return [];
+    return summary.countsByCategory.map((c) => ({
+      name: c.category,
+      value: Number((c.totalPriceBrl ?? 0).toFixed(2)),
+    }));
+  }, [summary]);
+
+  const revenueThisMonth = useMemo(() => {
+    if (!summary) return 0;
+    const cutoff = new Date();
+    cutoff.setDate(1);
+    const prefix = cutoff.toISOString().slice(0, 7);
+    return summary.timeseries
+      .filter((p) => p.date.startsWith(prefix))
+      .reduce((acc, p) => acc + safeNumber(p.totalPriceBrl), 0);
+  }, [summary]);
 
   function openEvidence(category: string, evidence: ComparisonEvidence[]) {
     setEvidenceCategory(category);
@@ -263,6 +284,27 @@ function DashboardPage() {
             icon="category"
             value={`${formatKg(othersG)} kg`}
             hint={`${(safeNumber(summary?.countsByCategory.find((c) => c.category === "outros")?.count)).toFixed(0)} itens`}
+          />
+        </MetricsGrid>
+
+        <MetricsGrid>
+          <MetricCard
+            label="Receita total (R$)"
+            icon="payments"
+            value={formatCurrencyBrl(totalBrl)}
+            hint="Estimada pela IA"
+          />
+          <MetricCard
+            label="Preço médio (R$/kg)"
+            icon="local_offer"
+            value={totalWeightG > 0 ? formatCurrencyBrl(totalBrl / (totalWeightG / 1000)) : "—"}
+            hint="Média ponderada"
+          />
+          <MetricCard
+            label="Receita do mês"
+            icon="calendar_month"
+            value={formatCurrencyBrl(revenueThisMonth)}
+            hint="Mês atual"
           />
         </MetricsGrid>
 
@@ -342,6 +384,21 @@ function DashboardPage() {
             </ChartPanel>
           </GlassPanel>
 
+          <GlassPanel>
+            <ChartPanel>
+              <ChartTitle>Receita estimada por categoria (R$)</ChartTitle>
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={revenueByCategory}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={palette.neutral.outlineVariant} />
+                  <XAxis dataKey="name" stroke={palette.neutral.onSurfaceVariant} />
+                  <YAxis stroke={palette.neutral.onSurfaceVariant} tickFormatter={(v) => `R$${v}`} />
+                  <Tooltip formatter={(v: number) => [`R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, "Receita"]} />
+                  <Bar dataKey="value" fill={palette.tertiary.main} />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartPanel>
+          </GlassPanel>
+
         </ChartsGrid>
 
         {isAdmin && (
@@ -373,6 +430,7 @@ function DashboardPage() {
               <div>Equipe (kg)</div>
               <div>IA (qtd)</div>
               <div>IA (kg)</div>
+              <div>Valor IA (R$)</div>
               <div>Status</div>
               <div>Evidência</div>
             </ComparisonHeaderRow>
@@ -403,6 +461,7 @@ function DashboardPage() {
                   <div>{formatKg(row.manualWeightG)}</div>
                   <div>{safeNumber(row.aiCount)}</div>
                   <div>{formatKg(row.aiWeightG)}</div>
+                  <div>{formatCurrencyBrl(row.aiPriceBrl)}</div>
                   <div>
                     <StatusPill ok={row.match}>
                       {row.match ? "Match" : "Divergência"}

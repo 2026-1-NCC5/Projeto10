@@ -71,7 +71,7 @@ function SelectRolePage() {
           <BrandingIcon>
             <span className="material-symbols-outlined">visibility</span>
           </BrandingIcon>
-          <BrandingText>Lideranças Empáticas</BrandingText>
+          <BrandingText>Lideranças Empáticas G2JF</BrandingText>
         </BrandingRow>
 
         <HeaderSection>

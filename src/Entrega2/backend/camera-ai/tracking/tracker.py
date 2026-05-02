@@ -5,25 +5,22 @@ from config import MAX_DISAPPEARED_FRAMES
 
 
 class CentroidTracker:
-    """Rastreia objetos entre frames usando distancia euclidiana entre centroids.
-
-    Cada objeto recebe um ID unico. Objetos que desaparecem por mais de
-    max_disappeared frames consecutivos sao desregistrados.
-    """
 
     def __init__(self, max_disappeared=None, max_distance=100.0):
         self.next_object_id = 0
         self.objects = OrderedDict()
         self.labels = OrderedDict()
+        self.raw_labels = OrderedDict()
         self.confidences = OrderedDict()
         self.disappeared = OrderedDict()
         self.max_disappeared = max_disappeared or MAX_DISAPPEARED_FRAMES
         self.max_distance = max_distance
 
-    def _register(self, centroid, label, confidence):
+    def _register(self, centroid, label, confidence, raw_label=""):
         object_id = self.next_object_id
         self.objects[object_id] = centroid
         self.labels[object_id] = label
+        self.raw_labels[object_id] = raw_label or label
         self.confidences[object_id] = confidence
         self.disappeared[object_id] = 0
         self.next_object_id += 1
@@ -32,19 +29,11 @@ class CentroidTracker:
     def _deregister(self, object_id):
         del self.objects[object_id]
         del self.labels[object_id]
+        del self.raw_labels[object_id]
         del self.confidences[object_id]
         del self.disappeared[object_id]
 
     def update(self, detections):
-        """Atualiza o tracker com novas deteccoes.
-
-        Args:
-            detections: lista de dicts com keys 'centroid', 'label', 'confidence'.
-
-        Returns:
-            Lista de dicts com 'id', 'centroid', 'label', 'confidence' para
-            cada objeto rastreado atualmente.
-        """
         if len(detections) == 0:
             for object_id in list(self.disappeared.keys()):
                 self.disappeared[object_id] += 1
@@ -54,7 +43,12 @@ class CentroidTracker:
 
         if len(self.objects) == 0:
             for det in detections:
-                self._register(det["centroid"], det["label"], det["confidence"])
+                self._register(
+                    det["centroid"],
+                    det["label"],
+                    det["confidence"],
+                    det.get("raw_label", det["label"]),
+                )
             return self._build_tracked_list()
 
         object_ids = list(self.objects.keys())
@@ -93,6 +87,7 @@ class CentroidTracker:
             oid = object_ids[r]
             self.objects[oid] = det_centroids[c]
             self.labels[oid] = detections[c]["label"]
+            self.raw_labels[oid] = detections[c].get("raw_label", detections[c]["label"])
             self.confidences[oid] = detections[c]["confidence"]
             self.disappeared[oid] = 0
 
@@ -109,6 +104,7 @@ class CentroidTracker:
                     detections[c]["centroid"],
                     detections[c]["label"],
                     detections[c]["confidence"],
+                    detections[c].get("raw_label", detections[c]["label"]),
                 )
 
         return self._build_tracked_list()
@@ -120,6 +116,7 @@ class CentroidTracker:
                 "id": oid,
                 "centroid": self.objects[oid],
                 "label": self.labels[oid],
+                "raw_label": self.raw_labels[oid],
                 "confidence": self.confidences[oid],
             })
         return result
@@ -128,5 +125,6 @@ class CentroidTracker:
         self.next_object_id = 0
         self.objects.clear()
         self.labels.clear()
+        self.raw_labels.clear()
         self.confidences.clear()
         self.disappeared.clear()

@@ -14,6 +14,7 @@ class AIDetection(Base):
     item_name = Column(String(50), nullable=False)
     category = Column(String(20), nullable=False)
     estimated_weight_g = Column(Numeric(10, 2), nullable=True)
+    estimated_price_brl = Column(Numeric(10, 2), nullable=True)
     confidence = Column(Float, nullable=False)
     detected_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     team_id = Column(UUID(as_uuid=True), nullable=False)

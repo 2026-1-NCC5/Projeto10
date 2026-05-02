@@ -68,7 +68,7 @@ function LoginPage() {
       <Content>
         <BrandingHeader
           icon="monitoring"
-          title="Lideranças Empáticas"
+          title="Lideranças Empáticas G2JF"
           subtitle="Sistema de Gestão e Contagem de Alimentos"
         />
 

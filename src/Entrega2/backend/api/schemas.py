@@ -134,6 +134,7 @@ class AIDetectionResponse(CamelModel):
     item_name: str
     category: str
     estimated_weight_g: Optional[float] = None
+    estimated_price_brl: Optional[float] = None
     confidence: float
     detected_at: datetime
     team_id: str
@@ -146,12 +147,15 @@ class DashboardCategoryTotal(CamelModel):
     category: str
     total_weight_g: float
     count: int
+    total_price_brl: float = 0.0
+    avg_price_per_kg: float = 0.0
 
 
 class DashboardTimeseriesPoint(CamelModel):
     date: str
     total_weight_g: float
     count: int
+    total_price_brl: float = 0.0
 
 
 class DashboardSummaryResponse(CamelModel):
@@ -188,6 +192,7 @@ class ComparisonCategory(CamelModel):
     manual_weight_g: float
     ai_count: int
     ai_weight_g: float
+    ai_price_brl: float = 0.0
     match: bool
     evidence: list[ComparisonEvidence] = []
 
@@ -203,6 +208,7 @@ class OperatorComparison(CamelModel):
     manual_count: int
     ai_weight_g: float
     ai_count: int
+    ai_price_brl: float = 0.0
 
 
 class OperatorComparisonResponse(CamelModel):
@@ -217,6 +223,7 @@ class FoodDistributionItem(CamelModel):
     manual_weight_g: float
     ai_count: int
     ai_weight_g: float
+    ai_price_brl: float = 0.0
 
 
 class FoodDistributionResponse(CamelModel):

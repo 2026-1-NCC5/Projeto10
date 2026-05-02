@@ -1,4 +1,3 @@
-import time
 import threading
 from typing import Callable, Optional
 from uuid import UUID
@@ -12,11 +11,15 @@ from config import (
     CONFIDENCE_THRESHOLD,
     SUB_ITEM_DEFAULT,
     CATEGORY_WEIGHTS_G,
+    CATEGORY_PRICES_BRL_PER_KG,
+    VIRTUAL_LINE_Y_RATIO,
 )
 from ml.inference import detect_frame
+from tracking.tracker import CentroidTracker
+from tracking.line_counter import VirtualLineCounter
+
 
 REQUIRED_STABLE_FRAMES = 10
-COOLDOWN_SECONDS = 3.0
 
 _COLORS = {
     "arroz": (0, 255, 0),
@@ -26,7 +29,10 @@ _COLORS = {
 _DEFAULT_COLOR = (200, 200, 200)
 
 
-def _annotate_frame(frame, raw_detections, counts, sub_item_counts, stable_label, stable_count):
+_HISTORY_MAX = 7
+
+
+def _annotate_frame(frame, raw_detections, counts, sub_item_counts, line_y, detection_history=None):
     annotated = frame.copy()
     h, w = annotated.shape[:2]
 
@@ -48,6 +54,21 @@ def _annotate_frame(frame, raw_detections, counts, sub_item_counts, stable_label
         cv2.putText(annotated, text, (x1 + 2, y1 - 4),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
 
+        lookup = sub_item if sub_item else label
+        weight_g = CATEGORY_WEIGHTS_G.get(lookup)
+        if weight_g is not None:
+            price = round((weight_g / 1000.0) * CATEGORY_PRICES_BRL_PER_KG.get(lookup, 0.0), 2)
+            info = f"{weight_g:.0f}g  R${price:.2f}"
+            (iw, ih), _ = cv2.getTextSize(info, cv2.FONT_HERSHEY_SIMPLEX, 0.52, 1)
+            cv2.rectangle(annotated, (x1, y2 + 1), (x1 + iw + 6, y2 + ih + 10), color, -1)
+            cv2.putText(annotated, info, (x1 + 3, y2 + ih + 4),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.52, (255, 255, 255), 1)
+
+    if line_y is not None:
+        cv2.line(annotated, (0, line_y), (w, line_y), (0, 255, 255), 2)
+        cv2.putText(annotated, "CONTAGEM", (w - 110, line_y - 6),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1)
+
     y_offset = 30
     cv2.putText(annotated, f"Total: {counts.get('total', 0)}", (10, y_offset),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
@@ -61,15 +82,41 @@ def _annotate_frame(frame, raw_detections, counts, sub_item_counts, stable_label
         cv2.putText(annotated, cat_text, (10, y_offset),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
 
-    if stable_label and stable_count > 0:
-        progress = min(stable_count / REQUIRED_STABLE_FRAMES, 1.0)
-        bar_w = int(200 * progress)
-        bar_y = h - 40
-        cv2.rectangle(annotated, (10, bar_y), (210, bar_y + 20), (50, 50, 50), -1)
-        bar_color = (0, 255, 0) if progress >= 1.0 else (0, 200, 255)
-        cv2.rectangle(annotated, (10, bar_y), (10 + bar_w, bar_y + 20), bar_color, -1)
-        cv2.putText(annotated, f"{stable_label} {stable_count}/{REQUIRED_STABLE_FRAMES}",
-                    (10, bar_y - 6), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+    if detection_history:
+        panel_w = 250
+        row_h = 26
+        padding = 8
+        panel_h = 28 + len(detection_history) * row_h + 36
+        px = w - panel_w - padding
+        py = padding
+
+        overlay = annotated.copy()
+        cv2.rectangle(overlay, (px - padding, py), (w - padding, py + panel_h), (0, 18, 28), -1)
+        cv2.addWeighted(overlay, 0.78, annotated, 0.22, 0, annotated)
+
+        cv2.putText(annotated, "Historico de deteccoes", (px - 4, py + 18),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (180, 200, 210), 1)
+
+        for i, entry in enumerate(detection_history):
+            ry = py + 28 + i * row_h + row_h - 6
+            name = entry["item_name"]
+            wg = entry.get("estimated_weight_g")
+            pr = entry.get("estimated_price_brl")
+            cat = entry.get("category", "outros")
+            rank = entry["rank"]
+            col = _COLORS.get(cat, _DEFAULT_COLOR)
+            wstr = f"{wg:.0f}g" if wg is not None else "  —  "
+            pstr = f"R${pr:.2f}" if pr is not None else "—"
+            row_text = f"#{rank:<2}  {name:<10}  {wstr:<6}  {pstr}"
+            cv2.putText(annotated, row_text, (px - 4, ry),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.48, col, 1)
+
+        total_w = sum(e.get("estimated_weight_g") or 0 for e in detection_history)
+        total_p = sum(e.get("estimated_price_brl") or 0 for e in detection_history)
+        footer_y = py + 28 + len(detection_history) * row_h + 26
+        cv2.putText(annotated, f"Acum: {total_w:.0f}g  R${total_p:.2f}",
+                    (px - 4, footer_y),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
     return annotated
 
@@ -92,11 +139,11 @@ def run_capture_loop(
     counts = {cat: 0 for cat in CATEGORIES}
     counts["total"] = 0
     sub_item_counts: dict[str, int] = {}
+    detection_history: list[dict] = []
 
-    stable_raw_label = None
-    stable_count = 0
-    last_saved_raw_label = None
-    last_saved_time = 0.0
+    tracker = CentroidTracker()
+    line_counter = VirtualLineCounter(line_position_frac=VIRTUAL_LINE_Y_RATIO)
+    track_stability: dict[int, dict] = {}
 
     print("[INFO] Camera iniciada. Pressione Ctrl+C para encerrar.\n")
 
@@ -106,79 +153,92 @@ def run_capture_loop(
             if not ret:
                 break
 
+            h = frame.shape[0]
             raw_detections = detect_frame(frame, model, CONFIDENCE_THRESHOLD)
 
-            current_label = None
-            current_sub_item = None
-            current_raw_label = None
-            current_conf = 0.0
+            tracked = tracker.update(raw_detections)
 
-            if raw_detections:
-                best = max(raw_detections, key=lambda d: d["confidence"])
-                current_label = best["label"]
-                current_sub_item = best.get("sub_item", SUB_ITEM_DEFAULT)
-                current_raw_label = best.get("raw_label", current_label)
-                current_conf = best["confidence"]
+            active_ids = {obj["id"] for obj in tracked}
+            for tid in list(track_stability.keys()):
+                if tid not in active_ids:
+                    del track_stability[tid]
 
-                if stable_raw_label == current_raw_label:
-                    stable_count += 1
+            for obj in tracked:
+                tid = obj["id"]
+                raw_label = obj.get("raw_label", obj["label"])
+                state = track_stability.setdefault(tid, {"raw_label": raw_label, "count": 0})
+                if state["raw_label"] == raw_label:
+                    state["count"] += 1
                 else:
-                    stable_raw_label = current_raw_label
-                    stable_count = 1
+                    state["raw_label"] = raw_label
+                    state["count"] = 1
 
-                if stable_count >= REQUIRED_STABLE_FRAMES:
-                    now = time.time()
-                    if (
-                        current_raw_label != last_saved_raw_label
-                        or (now - last_saved_time) > COOLDOWN_SECONDS
-                    ):
-                        cat = current_label if current_label in counts else "outros"
-                        counts[cat] += 1
-                        counts["total"] += 1
+            stable_tracks = [
+                obj for obj in tracked
+                if track_stability.get(obj["id"], {}).get("count", 0) >= REQUIRED_STABLE_FRAMES
+            ]
 
-                        if current_sub_item and current_sub_item != cat:
-                            sub_item_counts[current_sub_item] = (
-                                sub_item_counts.get(current_sub_item, 0) + 1
-                            )
+            newly_counted = line_counter.update(stable_tracks, h)
 
-                        last_saved_raw_label = current_raw_label
-                        last_saved_time = now
-                        stable_count = 0
+            for event in newly_counted:
+                raw_label = event.get("raw_label", event["label"])
+                category, sub_item = CLASS_TO_CATEGORY.get(raw_label, ("outros", SUB_ITEM_DEFAULT))
 
-                        weight_g = CATEGORY_WEIGHTS_G.get(current_raw_label, None)
+                cat = category if category in counts else "outros"
+                counts[cat] += 1
+                counts["total"] += 1
 
-                        record = {
-                            "item_name": current_raw_label,
-                            "category": cat,
-                            "sub_item": current_sub_item,
-                            "confidence": current_conf,
-                            "estimated_weight_g": weight_g,
-                            "team_id": team_id,
-                            "operator_name": operator_name,
-                        }
+                if sub_item and sub_item != cat:
+                    sub_item_counts[sub_item] = sub_item_counts.get(sub_item, 0) + 1
 
-                        evidence_frame = _annotate_frame(
-                            frame, raw_detections, counts, sub_item_counts, None, 0
-                        )
-                        _, jpeg_buf = cv2.imencode(
-                            ".jpg", evidence_frame, [cv2.IMWRITE_JPEG_QUALITY, 90]
-                        )
-                        frame_bytes = jpeg_buf.tobytes()
+                weight_g = CATEGORY_WEIGHTS_G.get(raw_label)
+                price_brl = None
+                if weight_g is not None:
+                    price_brl = round(
+                        (weight_g / 1000.0) * CATEGORY_PRICES_BRL_PER_KG.get(raw_label, 0.0), 2
+                    )
 
-                        print(
-                            f"[CONTADO] {current_raw_label} ({cat}) "
-                            f"conf={current_conf:.0%} "
-                            f"peso={weight_g}g | total={counts['total']}"
-                        )
+                record = {
+                    "item_name": raw_label,
+                    "category": cat,
+                    "sub_item": sub_item,
+                    "confidence": event["confidence"],
+                    "estimated_weight_g": weight_g,
+                    "estimated_price_brl": price_brl,
+                    "team_id": team_id,
+                    "operator_name": operator_name,
+                }
 
-                        on_detection(record, frame_bytes)
-            else:
-                stable_raw_label = None
-                stable_count = 0
+                detection_history.append({
+                    "rank": counts["total"],
+                    "item_name": raw_label,
+                    "category": cat,
+                    "estimated_weight_g": weight_g,
+                    "estimated_price_brl": price_brl,
+                })
+                if len(detection_history) > _HISTORY_MAX:
+                    detection_history.pop(0)
+
+                evidence_frame = _annotate_frame(
+                    frame, raw_detections, counts, sub_item_counts, line_counter.get_line_y()
+                )
+                _, jpeg_buf = cv2.imencode(
+                    ".jpg", evidence_frame, [cv2.IMWRITE_JPEG_QUALITY, 90]
+                )
+                frame_bytes = jpeg_buf.tobytes()
+
+                price_str = f"R${price_brl:.2f}" if price_brl is not None else "—"
+                print(
+                    f"[CONTADO] {raw_label} ({cat}) "
+                    f"conf={event['confidence']:.0%} "
+                    f"peso={weight_g}g preco={price_str} | total={counts['total']}"
+                )
+
+                on_detection(record, frame_bytes)
 
             annotated = _annotate_frame(
-                frame, raw_detections, counts, sub_item_counts,
-                stable_raw_label, stable_count,
+                frame, raw_detections, counts, sub_item_counts, line_counter.get_line_y(),
+                detection_history=detection_history if detection_history else None,
             )
             cv2.imshow("Camera AI", annotated)
 

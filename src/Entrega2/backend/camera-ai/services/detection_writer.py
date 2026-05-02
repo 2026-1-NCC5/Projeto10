@@ -33,6 +33,7 @@ class AIDetection(Base):
     item_name = Column(String(50), nullable=False)
     category = Column(String(20), nullable=False)
     estimated_weight_g = Column(Numeric(10, 2), nullable=True)
+    estimated_price_brl = Column(Numeric(10, 2), nullable=True)
     confidence = Column(Float, nullable=False)
     detected_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     team_id = Column(PGUUID(as_uuid=True), nullable=False)
@@ -51,6 +52,7 @@ def write_detection(
     team_id: UUID,
     operator_name: Optional[str],
     estimated_weight_g: Optional[float],
+    estimated_price_brl: Optional[float] = None,
 ) -> UUID:
     db: Session = _SessionLocal()
     try:
@@ -59,6 +61,7 @@ def write_detection(
             category=category,
             confidence=confidence,
             estimated_weight_g=estimated_weight_g,
+            estimated_price_brl=estimated_price_brl,
             detected_at=datetime.utcnow(),
             team_id=team_id,
             operator_name=operator_name,

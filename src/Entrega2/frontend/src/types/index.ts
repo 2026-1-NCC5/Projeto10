@@ -64,6 +64,8 @@ export type DashboardCategory = {
   category: string;
   totalWeightG: number;
   count: number;
+  totalPriceBrl: number;
+  avgPricePerKg: number;
 };
 
 
@@ -71,6 +73,7 @@ export type DashboardTimeseriesPoint = {
   date: string;
   totalWeightG: number;
   count: number;
+  totalPriceBrl: number;
 };
 
 
@@ -82,6 +85,10 @@ export type DashboardSummary = {
     beans_g: number;
     others_g: number;
     total_g: number;
+    rice_brl: number;
+    beans_brl: number;
+    others_brl: number;
+    total_brl: number;
   };
   countsByCategory: DashboardCategory[];
   timeseries: DashboardTimeseriesPoint[];
@@ -117,6 +124,7 @@ export type OperatorComparison = {
   manualCount: number;
   aiWeightG: number;
   aiCount: number;
+  aiPriceBrl: number;
 };
 
 
@@ -131,6 +139,7 @@ export type AIDetection = {
   itemName: string;
   category: string;
   estimatedWeightG: number | null;
+  estimatedPriceBrl: number | null;
   confidence: number;
   detectedAt: string;
   teamId: string;
@@ -146,6 +155,7 @@ export type ComparisonCategory = {
   manualWeightG: number;
   aiCount: number;
   aiWeightG: number;
+  aiPriceBrl: number;
   match: boolean;
   evidence: ComparisonEvidence[];
 };
@@ -164,6 +174,7 @@ export type FoodDistributionItem = {
   manualWeightG: number;
   aiCount: number;
   aiWeightG: number;
+  aiPriceBrl: number;
 };
 
 

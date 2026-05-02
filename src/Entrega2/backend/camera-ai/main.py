@@ -93,6 +93,7 @@ def main():
             team_id=record["team_id"],
             operator_name=record["operator_name"],
             estimated_weight_g=record.get("estimated_weight_g"),
+            estimated_price_brl=record.get("estimated_price_brl"),
         )
         enqueue_upload(
             detection_id=detection_id,

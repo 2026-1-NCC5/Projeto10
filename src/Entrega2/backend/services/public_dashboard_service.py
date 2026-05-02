@@ -24,29 +24,33 @@ def get_overview(
     date_from: Optional[datetime] = None,
     date_to: Optional[datetime] = None,
 ) -> dict:
-    total_g = float(
-        _apply_ai_range(
-            db.query(func.coalesce(func.sum(AIDetection.estimated_weight_g), 0)),
-            date_from,
-            date_to,
-        ).scalar()
-        or 0
-    )
+    agg = _apply_ai_range(
+        db.query(
+            func.coalesce(func.sum(AIDetection.estimated_weight_g), 0),
+            func.coalesce(func.sum(AIDetection.estimated_price_brl), 0),
+        ),
+        date_from,
+        date_to,
+    ).one()
+    total_g = float(agg[0] or 0)
+    total_brl = float(agg[1] or 0)
 
     category_rows = _apply_ai_range(
         db.query(
             AIDetection.category,
             func.coalesce(func.sum(AIDetection.estimated_weight_g), 0).label("weight"),
+            func.coalesce(func.sum(AIDetection.estimated_price_brl), 0).label("price"),
             func.count(AIDetection.id).label("count"),
         ),
         date_from,
         date_to,
     ).group_by(AIDetection.category).all()
 
-    categories: dict[str, dict] = {c: {"category": c, "total_g": 0.0, "count": 0} for c in CATEGORIES}
-    for category, weight, count in category_rows:
+    categories: dict[str, dict] = {c: {"category": c, "total_g": 0.0, "total_brl": 0.0, "count": 0} for c in CATEGORIES}
+    for category, weight, price, count in category_rows:
         key = category if category in categories else "outros"
         categories[key]["total_g"] += float(weight or 0)
+        categories[key]["total_brl"] += float(price or 0)
         categories[key]["count"] += int(count or 0)
 
     item_rows = _apply_ai_range(
@@ -93,6 +97,8 @@ def get_overview(
 
     return {
         "total_collected_g": total_g,
+        "total_collected_brl": total_brl,
+        "avg_price_per_kg": round(total_brl / (total_g / 1000.0), 2) if total_g > 0 else 0.0,
         "collectors_count": int(distinct_teams),
         "categories": list(categories.values()),
         "items": items_list,
