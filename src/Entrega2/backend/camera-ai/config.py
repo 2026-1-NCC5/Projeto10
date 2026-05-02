@@ -52,7 +52,7 @@ CATEGORY_PRICES_BRL_PER_KG: dict[str, float] = {
     "arroz": 5.50,
     "feijao": 7.50,
     "acucar": 4.50,
-    "cafe": 70.00,
+    "cafe": 50.00,
     "macarrao": 8.00,
 }
 
