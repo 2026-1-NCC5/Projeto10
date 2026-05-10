@@ -392,7 +392,7 @@ function DashboardPage() {
                   <CartesianGrid strokeDasharray="3 3" stroke={palette.neutral.outlineVariant} />
                   <XAxis dataKey="name" stroke={palette.neutral.onSurfaceVariant} />
                   <YAxis stroke={palette.neutral.onSurfaceVariant} tickFormatter={(v) => `R$${v}`} />
-                  <Tooltip formatter={(v: number) => [`R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, "Receita"]} />
+                  <Tooltip formatter={(v: number | undefined) => [`R$ ${(v ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, "Receita"]} />
                   <Bar dataKey="value" fill={palette.tertiary.main} />
                 </BarChart>
               </ResponsiveContainer>

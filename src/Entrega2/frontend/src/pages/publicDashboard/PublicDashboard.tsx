@@ -229,7 +229,7 @@ function PublicDashboardPage() {
                     <YAxis stroke={theme.palette.text.secondary} fontSize={12} unit=" kg" />
                     <Tooltip
                       contentStyle={tooltipStyle}
-                      formatter={(value: number) => [`${value.toLocaleString("pt-BR")} kg`, "Arrecadação"]}
+                      formatter={(value: number | undefined) => [`${(value ?? 0).toLocaleString("pt-BR")} kg`, "Arrecadação"]}
                     />
                     <Area
                       type="monotone"
@@ -264,7 +264,7 @@ function PublicDashboardPage() {
                     </Pie>
                     <Tooltip
                       contentStyle={tooltipStyle}
-                      formatter={(value: number) => [`${value.toLocaleString("pt-BR")} kg`, "Total"]}
+                      formatter={(value: number | undefined) => [`${(value ?? 0).toLocaleString("pt-BR")} kg`, "Total"]}
                     />
                     <Legend wrapperStyle={{ fontSize: 12 }} />
                   </PieChart>
