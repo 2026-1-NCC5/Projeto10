@@ -10,9 +10,27 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/Status-Em_Desenvolvimento-yellow?style=for-the-badge" alt="Status">
-  <img src="https://img.shields.io/badge/Entrega-1_de_2-blue?style=for-the-badge" alt="Entrega">
+  <img src="https://img.shields.io/badge/Entrega-2_de_2-blue?style=for-the-badge" alt="Entrega">
   <img src="https://img.shields.io/badge/Semestre-5%C2%BA_CCOMP_2026-green?style=for-the-badge" alt="Semestre">
 </p>
+
+---
+
+## Acesse o Projeto
+
+<p align="center">
+  <a href="https://project-10-rho-two.vercel.app/overview"><strong>Dashboard Publico (sem login)</strong></a>
+  &nbsp;&nbsp;&bull;&nbsp;&nbsp;
+  <a href="https://project-10-rho-two.vercel.app"><strong>Aplicacao Web Completa</strong></a>
+</p>
+
+> **Acesse o Dashboard Publico** para visualizar deteccoes registradas, graficos por categoria e historico de coletas sem precisar criar conta.
+> Para explorar o fluxo completo, acesse a Aplicacao Web e crie uma conta.
+
+| Recurso | URL |
+|---------|-----|
+| Dashboard Publico (sem login) | https://project-10-rho-two.vercel.app/overview |
+| Aplicacao Web (login/cadastro) | https://project-10-rho-two.vercel.app |
 
 ---
 
