@@ -1,8 +1,13 @@
+import os
 import signal
 import sys
 import threading
 from typing import Optional
 from uuid import UUID
+
+
+os.environ.setdefault("QT_QPA_PLATFORM", "xcb")
+os.environ.setdefault("QT_LOGGING_RULES", "*.debug=false;qt.qpa.*=false;qt.text.*=false")
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker

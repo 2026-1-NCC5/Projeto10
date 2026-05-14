@@ -1,4 +1,5 @@
 ultralytics
+easyocr
 opencv-python
 sqlalchemy
 psycopg2-binary

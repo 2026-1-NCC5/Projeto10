@@ -48,6 +48,24 @@ CATEGORY_WEIGHTS_G: dict[str, float] = {
     "macarrao": 500.0,
 }
 
+CATEGORY_WEIGHT_BUCKETS: dict[str, list[tuple[float, float]]] = {
+    "arroz":    [(0.18, 1000.0), (0.32, 2000.0), (1.01, 5000.0)],
+    "feijao":   [(0.18, 1000.0), (0.32, 2000.0), (1.01, 5000.0)],
+    "acucar":   [(0.18, 1000.0), (0.32, 2000.0), (1.01, 5000.0)],
+    "cafe":     [(0.10, 250.0),  (0.18, 500.0),  (1.01, 1000.0)],
+    "macarrao": [(0.15, 500.0),  (1.01, 1000.0)],
+}
+
+
+def estimate_weight_g(raw_label: str, area_ratio: float) -> float | None:
+    buckets = CATEGORY_WEIGHT_BUCKETS.get(raw_label)
+    if not buckets:
+        return CATEGORY_WEIGHTS_G.get(raw_label)
+    for max_ratio, weight_g in buckets:
+        if area_ratio <= max_ratio:
+            return weight_g
+    return buckets[-1][1]
+
 CATEGORY_PRICES_BRL_PER_KG: dict[str, float] = {
     "arroz": 5.50,
     "feijao": 7.50,
@@ -56,8 +74,18 @@ CATEGORY_PRICES_BRL_PER_KG: dict[str, float] = {
     "macarrao": 8.00,
 }
 
-MAX_DISAPPEARED_FRAMES = int(os.environ.get("MAX_DISAPPEARED_FRAMES", "5"))
+MAX_DISAPPEARED_FRAMES = int(os.environ.get("MAX_DISAPPEARED_FRAMES", "15"))
 
 VIRTUAL_LINE_Y_RATIO = float(os.environ.get("VIRTUAL_LINE_Y_RATIO", "0.5"))
 
 LINE_COUNT_DIRECTION = os.environ.get("LINE_COUNT_DIRECTION", "down")
+
+STABILITY_WINDOW = int(os.environ.get("STABILITY_WINDOW", "12"))
+
+STABILITY_MAJORITY = int(os.environ.get("STABILITY_MAJORITY", "8"))
+
+STABILITY_MEAN_CONFIDENCE = float(os.environ.get("STABILITY_MEAN_CONFIDENCE", "0.80"))
+
+STRICT_CONFIDENCE_NO_OCR = float(os.environ.get("STRICT_CONFIDENCE_NO_OCR", "0.90"))
+
+RECOUNT_COOLDOWN_S = float(os.environ.get("RECOUNT_COOLDOWN_S", "4.0"))
